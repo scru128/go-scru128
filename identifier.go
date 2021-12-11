@@ -7,7 +7,8 @@ import (
 	"strconv"
 )
 
-// Represents a SCRU128 ID and provides converters to/from string and numbers.
+// Represents a SCRU128 ID and provides various converters and comparison
+// operators.
 type Id [16]byte
 
 // Creates a SCRU128 ID object from field values.

@@ -3,7 +3,6 @@ package scru128
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"log"
 	"sync"
 	"time"
 )
@@ -61,15 +60,16 @@ func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
 		}
 		g.counter = n & maxCounter
 	} else if g.counter++; g.counter > maxCounter {
-		log.Println(
-			"INFO",
-			"scru128: counter limit reached; will wait until clock goes forward",
-		)
+		if Logger != nil {
+			Logger.Info("counter limit reached; will wait until clock goes forward")
+		}
 		nClockCheck := 0
 		for tsNow <= g.tsLastGen {
 			tsNow = uint64(time.Now().UnixMilli())
 			if nClockCheck++; nClockCheck > g.nClockCheckMax {
-				log.Println("WARN", "scru128: reset state as clock did not go forward")
+				if Logger != nil {
+					Logger.Warn("reset state as clock did not go forward")
+				}
 				g.tsLastSec = 0
 				break
 			}
@@ -106,3 +106,15 @@ func randomUint32() (uint32, error) {
 	_, err := rand.Read(buffer)
 	return binary.BigEndian.Uint32(buffer), err
 }
+
+// Specifies the logger object used in the package.
+//
+// Logging is disabled by default. Set a thread-safe logger to enable logging.
+//
+// Each method accepts fmt.Print-style arguments. The interface is compatible
+// with logrus and zap.
+var Logger interface {
+	Error(args ...interface{})
+	Warn(args ...interface{})
+	Info(args ...interface{})
+} = nil
