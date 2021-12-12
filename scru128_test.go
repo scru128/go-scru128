@@ -105,3 +105,10 @@ func TestThreading(t *testing.T) {
 	close(results)
 	<-done
 }
+
+func BenchmarkNewString(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		NewString()
+	}
+}

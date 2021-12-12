@@ -3,6 +3,7 @@ package scru128
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"io"
 	"sync"
 	"time"
 )
@@ -31,14 +32,33 @@ type generatorImpl struct {
 	nClockCheckMax int
 
 	lock sync.Mutex
+	rng  io.Reader
 }
 
-// Creates a generator object.
+// Creates a generator object with the default random number generator.
 //
 // Generate() of the returned object is thread safe; multiple threads can call
 // it concurrently. The method returns non-nil err only when crypto/rand fails.
+//
+// The underlying crypto/rand random number generator is quite slow for small
+// reads on some platforms. Wrapping crypto/rand with bufio may drastically
+// improve the throughput of generator in such a case. Check the following
+// benchmark results and use NewGeneratorWithRng() if necessary:
+//
+//     go test -bench Generator
 func NewGenerator() Generator {
-	return &generatorImpl{nClockCheckMax: 1_000_000}
+	return NewGeneratorWithRng(rand.Reader)
+}
+
+// Creates a generator object with a specified random number generator. The
+// specified random number generator should be cryptographically strong and
+// securely seeded.
+//
+// Generate() of the returned object is thread safe; multiple threads can call
+// it concurrently. The method returns non-nil err only when the random number
+// generator fails.
+func NewGeneratorWithRng(rng io.Reader) Generator {
+	return &generatorImpl{nClockCheckMax: 1_000_000, rng: rng}
 }
 
 // Generates a new SCRU128 ID object.
@@ -54,7 +74,7 @@ func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
 	tsNow := uint64(time.Now().UnixMilli())
 	if tsNow > g.tsLastGen {
 		g.tsLastGen = tsNow
-		n, err := randomUint32()
+		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
@@ -76,7 +96,7 @@ func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
 		}
 
 		g.tsLastGen = tsNow
-		n, err := randomUint32()
+		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
@@ -86,14 +106,14 @@ func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
 	// update perSecRandom
 	if g.tsLastGen-g.tsLastSec > 1_000 {
 		g.tsLastSec = g.tsLastGen
-		n, err := randomUint32()
+		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
 		g.perSecRandom = n & maxPerSecRandom
 	}
 
-	n, err := randomUint32()
+	n, err := g.randomUint32()
 	if err != nil {
 		return Id{}, err
 	}
@@ -101,9 +121,9 @@ func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
 }
 
 // Returns a random uint32 value.
-func randomUint32() (uint32, error) {
+func (g *generatorImpl) randomUint32() (uint32, error) {
 	buffer := make([]byte, 4)
-	_, err := rand.Read(buffer)
+	_, err := g.rng.Read(buffer)
 	return binary.BigEndian.Uint32(buffer), err
 }
 
