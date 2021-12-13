@@ -90,7 +90,7 @@ func TestStringValidation(t *testing.T) {
 	}
 }
 
-// Has symmetric converters from/to string, fields, and serialized forms
+// Has symmetric converters from/to various values
 func TestSymmetricConverters(t *testing.T) {
 	cases := []Id{
 		FromFields(0, 0, 0, 0),
