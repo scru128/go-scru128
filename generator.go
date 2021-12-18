@@ -1,6 +1,7 @@
 package scru128
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/binary"
 	"io"
@@ -40,14 +41,18 @@ type generatorImpl struct {
 // Generate() of the returned object is thread safe; multiple threads can call
 // it concurrently. The method returns non-nil err only when crypto/rand fails.
 //
-// The underlying crypto/rand random number generator is quite slow for small
-// reads on some platforms. Wrapping crypto/rand with bufio may drastically
-// improve the throughput of generator in such a case. Check the following
-// benchmark results and use NewGeneratorWithRng() if necessary:
+// The crypto/rand random number generator is quite slow for small reads on some
+// platforms. In such a case, wrapping crypto/rand with bufio.Reader may result
+// in a drastic improvement in the throughput of generator. If the throughput is
+// an important issue, check out the following benchmark tests and pass
+// bufio.NewReader(rand.Reader) to NewGeneratorWithRng():
 //
 //     go test -bench Generator
 func NewGenerator() Generator {
-	return NewGeneratorWithRng(rand.Reader)
+	// use small buffer to avoid both occasional unbearable performance
+	// degradation and waste of time and space for unused buffer contents
+	br := bufio.NewReaderSize(rand.Reader, 32)
+	return NewGeneratorWithRng(br)
 }
 
 // Creates a generator object with a specified random number generator. The
