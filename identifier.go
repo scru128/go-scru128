@@ -10,20 +10,17 @@ import (
 type Id [16]byte
 
 // Creates a SCRU128 ID object from field values.
+//
+// This function panics if any argument is out of the value range of the field.
 func FromFields(
 	timestamp uint64,
 	counter uint32,
 	perSecRandom uint32,
 	perGenRandom uint32,
 ) Id {
-	if timestamp < 0 ||
-		counter < 0 ||
-		perSecRandom < 0 ||
-		perGenRandom < 0 ||
-		timestamp > 0xFFF_FFFF_FFFF ||
+	if timestamp > 0xFFF_FFFF_FFFF ||
 		counter > maxCounter ||
-		perSecRandom > maxPerSecRandom ||
-		perGenRandom > 0xFFFF_FFFF {
+		perSecRandom > maxPerSecRandom {
 		panic("invalid field value")
 	}
 
@@ -79,8 +76,8 @@ func (bs Id) String() string {
 	return string(buffer)
 }
 
-// Returns -1, 0, and 1 if the object is less than, equal to, and greater than
-// the argument, respectively.
+// Returns -1, 0, or 1 if the object is less than, equal to, or greater than the
+// argument, respectively.
 func (bs Id) Cmp(other Id) int {
 	return bytes.Compare(bs[:], other[:])
 }
@@ -130,7 +127,7 @@ func (bs Id) MarshalText() (text []byte, err error) {
 	return
 }
 
-// O(1) map from ASCII values to base 32 digit values.
+// O(1) map from ASCII code points to base 32 digit values.
 var decodeMap = [256]byte{
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
