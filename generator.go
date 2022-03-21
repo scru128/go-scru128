@@ -9,31 +9,36 @@ import (
 	"time"
 )
 
-// Represents a SCRU128 ID generator that encapsulates the monotonic counter and
-// other internal states.
+// Represents a SCRU128 ID generator that encapsulates the monotonic counters
+// and other internal states.
 type Generator interface {
 	// Generates a new SCRU128 ID object.
 	Generate() (id Id, err error)
+
+	// Specifies the logger object used by the generator.
+	//
+	// Logging is disabled by default. Set a logger object to enable logging.
+	//
+	// The Warn method accepts fmt.Print-style arguments. The interface is
+	// compatible with logrus and zap.
+	SetLogger(logger interface{ Warn(args ...interface{}) })
 }
 
 type generatorImpl struct {
-	// Timestamp at last generation.
-	tsLastGen uint64
+	timestamp uint64
+	counterHi uint32
+	counterLo uint32
 
-	// Counter at last generation.
-	counter uint32
+	// Timestamp at the last renewal of counter_hi field.
+	tsCounterHi uint64
 
-	// Timestamp at last renewal of perSecRandom.
-	tsLastSec uint64
-
-	// Per-second random value at last generation.
-	perSecRandom uint32
-
-	// Maximum number of checking the system clock until it goes forward.
-	nClockCheckMax int
+	// Random number generator used by the generator.
+	rng io.Reader
 
 	lock sync.Mutex
-	rng  io.Reader
+
+	// Logger object used by the generator.
+	logger interface{ Warn(args ...interface{}) }
 }
 
 // Creates a generator object with the default random number generator.
@@ -63,7 +68,7 @@ func NewGenerator() Generator {
 // it concurrently. The method returns non-nil err only when the random number
 // generator fails.
 func NewGeneratorWithRng(rng io.Reader) Generator {
-	return &generatorImpl{nClockCheckMax: 1_000_000, rng: rng}
+	return &generatorImpl{rng: rng}
 }
 
 // Generates a new SCRU128 ID object.
@@ -75,54 +80,40 @@ func (g *generatorImpl) Generate() (id Id, err error) {
 
 // Generates a new SCRU128 ID object without overhead for thread safety.
 func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
-	// update timestamp and counter
-	tsNow := uint64(time.Now().UnixMilli())
-	if tsNow > g.tsLastGen {
-		g.tsLastGen = tsNow
+	ts := uint64(time.Now().UnixMilli())
+	if ts > g.timestamp {
+		g.timestamp = ts
 		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
-		g.counter = n & maxCounter
-	} else if g.counter++; g.counter > maxCounter {
-		if Logger != nil {
-			Logger.Info("counter limit reached; will wait until clock goes forward")
+		g.counterLo = n & maxCounterLo
+		if ts-g.tsCounterHi >= 1000 {
+			g.tsCounterHi = ts
+			n, err := g.randomUint32()
+			if err != nil {
+				return Id{}, err
+			}
+			g.counterHi = n & maxCounterHi
 		}
-		nClockCheck := 0
-		for tsNow <= g.tsLastGen {
-			tsNow = uint64(time.Now().UnixMilli())
-			if nClockCheck++; nClockCheck > g.nClockCheckMax {
-				if Logger != nil {
-					Logger.Warn("reset state as clock did not go forward")
-				}
-				g.tsLastSec = 0
-				break
+	} else {
+		g.counterLo++
+		if g.counterLo > maxCounterLo {
+			g.counterLo = 0
+			g.counterHi++
+			if g.counterHi > maxCounterHi {
+				g.counterHi = 0
+				g.handleCounterOverflow()
+				return g.generateThreadUnsafe()
 			}
 		}
-
-		g.tsLastGen = tsNow
-		n, err := g.randomUint32()
-		if err != nil {
-			return Id{}, err
-		}
-		g.counter = n & maxCounter
-	}
-
-	// update perSecRandom
-	if g.tsLastGen-g.tsLastSec > 1_000 {
-		g.tsLastSec = g.tsLastGen
-		n, err := g.randomUint32()
-		if err != nil {
-			return Id{}, err
-		}
-		g.perSecRandom = n & maxPerSecRandom
 	}
 
 	n, err := g.randomUint32()
 	if err != nil {
 		return Id{}, err
 	}
-	return FromFields(tsNow-TimestampBias, g.counter, g.perSecRandom, n), nil
+	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
 }
 
 // Returns a random uint32 value.
@@ -132,14 +123,32 @@ func (g *generatorImpl) randomUint32() (uint32, error) {
 	return binary.BigEndian.Uint32(buffer), err
 }
 
-// Specifies the logger object used in the package.
+// Defines the behavior on counter overflow.
+//
+// Currently, this method busy-waits for the next clock tick and, if the clock
+// does not move forward for a while, reinitializes the generator state.
+func (g *generatorImpl) handleCounterOverflow() {
+	if g.logger != nil {
+		g.logger.Warn("counter overflowing; will wait for next clock tick")
+	}
+	g.tsCounterHi = 0
+	for i := 0; i < 1_000_000; i++ {
+		if uint64(time.Now().UnixMilli()) > g.timestamp {
+			return
+		}
+	}
+	if g.logger != nil {
+		g.logger.Warn("reset state as clock did not move for a while")
+	}
+	g.timestamp = 0
+}
+
+// Specifies the logger object used by the generator.
 //
 // Logging is disabled by default. Set a thread-safe logger to enable logging.
 //
-// Each method accepts fmt.Print-style arguments. The interface is compatible
-// with logrus and zap.
-var Logger interface {
-	Error(args ...interface{})
-	Warn(args ...interface{})
-	Info(args ...interface{})
-} = nil
+// The Warn method accepts fmt.Print-style arguments. The interface is
+// compatible with logrus and zap.
+func (g *generatorImpl) SetLogger(logger interface{ Warn(args ...interface{}) }) {
+	g.logger = logger
+}

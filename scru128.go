@@ -16,11 +16,11 @@
 // See SCRU128 Specification for details: https://github.com/scru128/spec
 package scru128
 
-const maxCounter uint32 = 0xFFF_FFFF
-const maxPerSecRandom uint32 = 0xFF_FFFF
+// Maximum value of 24-bit counter_hi field.
+const maxCounterHi uint32 = 0xff_ffff
 
-// Unix time in milliseconds at 2020-01-01 00:00:00+00:00.
-const TimestampBias uint64 = 1577836800000
+// Maximum value of 24-bit counter_lo field.
+const maxCounterLo uint32 = 0xff_ffff
 
 var defaultGenerator = NewGenerator()
 

@@ -15,15 +15,15 @@ decentralized, globally unique time-ordered identifiers. SCRU128 is inspired by
 - 84-bit _layered_ randomness for collision resistance
 
 ```go
-import "github.com/scru128/go-scru128"
+import "github.com/scru128/go-scru128/v2"
 
 // generate a new identifier object
 x := scru128.New()
-fmt.Println(x)    // e.g. "00S6GVKR1MH58KE72EJD87SDOO"
+fmt.Println(x)    // e.g. "036Z951MHJIKZIK2GSL81GR7L"
 fmt.Println(x[:]) // as a 128-bit unsigned integer in big-endian byte array
 
 // generate a textual representation directly
-fmt.Println(scru128.NewString()) // e.g. "00S6GVKR3F7R79I72EJF0J4RGC"
+fmt.Println(scru128.NewString()) // e.g. "036Z951MHZX67T63MQ9XE6Q0J"
 ```
 
 See [SCRU128 Specification] for details.

@@ -12,14 +12,14 @@ import (
 var samples = make([]string, 100_000)
 
 func init() {
-	for i := 0; i < len(samples); i++ {
+	for i := range samples {
 		samples[i] = NewString()
 	}
 }
 
-// Generates 26-digit canonical string
+// Generates 25-digit canonical string
 func TestFormat(t *testing.T) {
-	re := regexp.MustCompile(`^[0-7][0-9A-V]{25}$`)
+	re := regexp.MustCompile(`^[0-9A-Z]{25}$`)
 	for _, e := range samples {
 		if !re.MatchString(e) {
 			t.Fail()
@@ -49,10 +49,9 @@ func TestOrder(t *testing.T) {
 
 // Encodes up-to-date timestamp
 func TestTimestamp(t *testing.T) {
-	epoch := time.Date(2020, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC", 0))
 	var g Generator = NewGenerator()
 	for i := 0; i < 10_000; i++ {
-		tsNow := time.Since(epoch).Milliseconds()
+		tsNow := time.Now().UnixMilli()
 		x, _ := g.Generate()
 		if math.Abs(float64(tsNow-int64(x.Timestamp()))) >= 16 {
 			t.Fail()
@@ -60,21 +59,24 @@ func TestTimestamp(t *testing.T) {
 	}
 }
 
-// Encodes unique sortable pair of timestamp and counter
-func TestTimestampAndCounter(t *testing.T) {
+// Encodes unique sortable tuple of timestamp and counters
+func TestTimestampAndCounters(t *testing.T) {
 	prev, _ := Parse(samples[0])
 	for _, e := range samples[1:] {
 		curr, _ := Parse(e)
 		if !(prev.Timestamp() < curr.Timestamp() ||
 			(prev.Timestamp() == curr.Timestamp() &&
-				prev.Counter() < curr.Counter())) {
+				prev.CounterHi() < curr.CounterHi()) ||
+			(prev.Timestamp() == curr.Timestamp() &&
+				prev.CounterHi() == curr.CounterHi() &&
+				prev.CounterLo() < curr.CounterLo())) {
 			t.Fail()
 		}
 		prev = curr
 	}
 }
 
-// Generates no IDs sharing same timestamp and counter under multithreading
+// Generates no IDs sharing same timestamp and counters under multithreading
 func TestThreading(t *testing.T) {
 	results := make(chan Id, 4*10_000)
 
@@ -94,7 +96,7 @@ func TestThreading(t *testing.T) {
 		defer close(done)
 		set := make(map[string]struct{}, 4*10_000)
 		for e := range results {
-			set[fmt.Sprintf("%011x-%07x", e.Timestamp(), e.Counter())] = struct{}{}
+			set[fmt.Sprintf("%012x-%06x-%06x", e.Timestamp(), e.CounterHi(), e.CounterLo())] = struct{}{}
 		}
 		if len(set) != 4*10_000 {
 			t.Fail()
