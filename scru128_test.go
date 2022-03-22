@@ -49,7 +49,7 @@ func TestOrder(t *testing.T) {
 
 // Encodes up-to-date timestamp
 func TestTimestamp(t *testing.T) {
-	var g Generator = NewGenerator()
+	var g *Generator = NewGenerator()
 	for i := 0; i < 10_000; i++ {
 		tsNow := time.Now().UnixMilli()
 		x, _ := g.Generate()
