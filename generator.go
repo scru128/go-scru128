@@ -111,14 +111,15 @@ func (g *Generator) randomUint32() (uint32, error) {
 
 // Defines the behavior on counter overflow.
 //
-// Currently, this method busy-waits for the next clock tick and, if the clock
-// does not move forward for a while, reinitializes the generator state.
+// Currently, this method waits for the next clock tick and, if the clock does
+// not move forward for a while, reinitializes the generator state.
 func (g *Generator) handleCounterOverflow() {
 	if g.logger != nil {
 		g.logger.Warn("counter overflowing; will wait for next clock tick")
 	}
 	g.tsCounterHi = 0
-	for i := 0; i < 1_000_000; i++ {
+	for i := 0; i < 10_000; i++ {
+		time.Sleep(100 * time.Microsecond)
 		if uint64(time.Now().UnixMilli()) > g.timestamp {
 			return
 		}
