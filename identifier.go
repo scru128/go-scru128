@@ -84,17 +84,8 @@ func (bs Id) Cmp(other Id) int {
 // Translates a big-endian byte sequence into uint64.
 func bytesToUint64(bigEndian []byte) uint64 {
 	var buffer uint64
-	for _, v := range bigEndian {
-		buffer = (buffer << 8) | uint64(v)
-	}
-	return buffer
-}
-
-// Translates a Base36 digit value array into uint64.
-func base36ToUint64(digits []byte) uint64 {
-	var buffer uint64
-	for _, v := range digits {
-		buffer = (buffer * 36) + uint64(v)
+	for _, e := range bigEndian {
+		buffer = (buffer << 8) | uint64(e)
 	}
 	return buffer
 }
@@ -123,12 +114,13 @@ func (bs Id) MarshalText() (text []byte, err error) {
 	minIndex := 99 // any number greater than size of output array
 	for i := -2; i < 16; i += 6 {
 		// implement Base36 using 48-bit words
-		var carry uint64
-		if i == -2 {
-			carry = bytesToUint64(bs[0 : i+6])
+		var word []byte
+		if i < 0 {
+			word = bs[0 : i+6]
 		} else {
-			carry = bytesToUint64(bs[i : i+6])
+			word = bs[i : i+6]
 		}
+		var carry uint64 = bytesToUint64(word)
 
 		// iterate over output array from right to left while carry != 0 but at
 		// least up to place already filled
@@ -141,8 +133,8 @@ func (bs Id) MarshalText() (text []byte, err error) {
 		minIndex = j
 	}
 
-	for i, v := range text {
-		text[i] = digits[v]
+	for i, e := range text {
+		text[i] = digits[e]
 	}
 	return
 }
@@ -178,8 +170,8 @@ func (bs *Id) UnmarshalText(text []byte) error {
 	}
 
 	src := make([]byte, 25)
-	for i, v := range text {
-		src[i] = decodeMap[v]
+	for i, e := range text {
+		src[i] = decodeMap[e]
 		if src[i] == 0xff {
 			return errors.New("invalid digit")
 		}
@@ -192,11 +184,15 @@ func (bs *Id) UnmarshalText(text []byte) error {
 	minIndex := 99 // any number greater than size of output array
 	for i := -2; i < 25; i += 9 {
 		// implement Base36 using 9-digit words
-		var carry uint64
-		if i == -2 {
-			carry = base36ToUint64(src[0 : i+9])
+		var word []byte
+		if i < 0 {
+			word = src[0 : i+9]
 		} else {
-			carry = base36ToUint64(src[i : i+9])
+			word = src[i : i+9]
+		}
+		var carry uint64
+		for _, e := range word {
+			carry = (carry * 36) + uint64(e)
 		}
 
 		// iterate over output array from right to left while carry != 0 but at
@@ -207,7 +203,7 @@ func (bs *Id) UnmarshalText(text []byte) error {
 				return errors.New("out of 128-bit value range")
 			}
 			carry += uint64(bs[j]) * 101559956668416 // 36^9
-			bs[j] = byte(carry & 0xff)
+			bs[j] = byte(carry)
 			carry = carry >> 8
 		}
 		minIndex = j
