@@ -61,11 +61,17 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	return g.generateThreadUnsafe()
+	id, err = g.generateCore()
+	for _, isOverflow := err.(*counterOverflowError); err != nil && isOverflow; {
+		g.handleCounterOverflow()
+		id, err = g.generateCore()
+	}
+	return
 }
 
-// Generates a new SCRU128 ID object without overhead for thread safety.
-func (g *Generator) generateThreadUnsafe() (id Id, err error) {
+// Generates a new SCRU128 ID object, while delegating the caller to take care
+// of thread safety and counter overflows.
+func (g *Generator) generateCore() (id Id, err error) {
 	ts := uint64(time.Now().UnixMilli())
 	if ts > g.timestamp {
 		g.timestamp = ts
@@ -89,8 +95,7 @@ func (g *Generator) generateThreadUnsafe() (id Id, err error) {
 			g.counterHi++
 			if g.counterHi > maxCounterHi {
 				g.counterHi = 0
-				g.handleCounterOverflow()
-				return g.generateThreadUnsafe()
+				return Id{}, &counterOverflowError{}
 			}
 		}
 	}
@@ -138,4 +143,11 @@ func (g *Generator) handleCounterOverflow() {
 // compatible with logrus and zap.
 func (g *Generator) SetLogger(logger interface{ Warn(args ...interface{}) }) {
 	g.logger = logger
+}
+
+// Error thrown when the monotonic counters can no more be incremented.
+type counterOverflowError struct{}
+
+func (_ *counterOverflowError) Error() string {
+	return "monotonic counters can not be incremented"
 }
