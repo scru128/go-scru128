@@ -112,13 +112,13 @@ var digits = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 func (bs Id) MarshalText() (text []byte, err error) {
 	text = make([]byte, 25)
 	minIndex := 99 // any number greater than size of output array
-	for i := -2; i < 16; i += 6 {
-		// implement Base36 using 48-bit words
+	for i := -5; i < 16; i += 7 {
+		// implement Base36 using 56-bit words
 		var word []byte
 		if i < 0 {
-			word = bs[0 : i+6]
+			word = bs[0 : i+7]
 		} else {
-			word = bs[i : i+6]
+			word = bs[i : i+7]
 		}
 		var carry uint64 = bytesToUint64(word)
 
@@ -126,7 +126,7 @@ func (bs Id) MarshalText() (text []byte, err error) {
 		// least up to place already filled
 		j := len(text) - 1
 		for ; carry > 0 || j > minIndex; j-- {
-			carry += uint64(text[j]) << 48
+			carry += uint64(text[j]) << 56
 			text[j] = byte(carry % 36)
 			carry = carry / 36
 		}
@@ -182,13 +182,13 @@ func (bs *Id) UnmarshalText(text []byte) error {
 	}
 
 	minIndex := 99 // any number greater than size of output array
-	for i := -2; i < 25; i += 9 {
-		// implement Base36 using 9-digit words
+	for i := -5; i < 25; i += 10 {
+		// implement Base36 using 10-digit words
 		var word []byte
 		if i < 0 {
-			word = src[0 : i+9]
+			word = src[0 : i+10]
 		} else {
-			word = src[i : i+9]
+			word = src[i : i+10]
 		}
 		var carry uint64
 		for _, e := range word {
@@ -202,7 +202,7 @@ func (bs *Id) UnmarshalText(text []byte) error {
 			if j < 0 {
 				return errors.New("out of 128-bit value range")
 			}
-			carry += uint64(bs[j]) * 101559956668416 // 36^9
+			carry += uint64(bs[j]) * 3656158440062976 // 36^10
 			bs[j] = byte(carry)
 			carry = carry >> 8
 		}
