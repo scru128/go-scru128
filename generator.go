@@ -25,9 +25,6 @@ type Generator struct {
 	// Random number generator used by the generator.
 	rng io.Reader
 
-	// Logger object used by the generator.
-	logger interface{ Warn(args ...interface{}) }
-
 	lock sync.Mutex
 }
 
@@ -61,17 +58,11 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	id, err = g.generateCore()
-	for _, isOverflow := err.(*counterOverflowError); err != nil && isOverflow; {
-		g.handleCounterOverflow()
-		id, err = g.generateCore()
-	}
-	return
+	return g.generateThreadUnsafe()
 }
 
-// Generates a new SCRU128 ID object, while delegating the caller to take care
-// of thread safety and counter overflows.
-func (g *Generator) generateCore() (id Id, err error) {
+// Generates a new SCRU128 ID object without overhead for thread safety.
+func (g *Generator) generateThreadUnsafe() (id Id, err error) {
 	ts := uint64(time.Now().UnixMilli())
 	if ts > g.timestamp {
 		g.timestamp = ts
@@ -80,24 +71,40 @@ func (g *Generator) generateCore() (id Id, err error) {
 			return Id{}, err
 		}
 		g.counterLo = n & maxCounterLo
-		if ts-g.tsCounterHi >= 1000 {
-			g.tsCounterHi = ts
-			n, err := g.randomUint32()
-			if err != nil {
-				return Id{}, err
-			}
-			g.counterHi = n & maxCounterHi
-		}
-	} else {
+	} else if ts+10_000 > g.timestamp {
 		g.counterLo++
 		if g.counterLo > maxCounterLo {
 			g.counterLo = 0
 			g.counterHi++
 			if g.counterHi > maxCounterHi {
 				g.counterHi = 0
-				return Id{}, &counterOverflowError{}
+				// increment timestamp at counter overflow
+				g.timestamp++
+				n, err := g.randomUint32()
+				if err != nil {
+					return Id{}, err
+				}
+				g.counterLo = n & maxCounterLo
 			}
 		}
+	} else {
+		// reset state if clock moves back more than ten seconds
+		g.tsCounterHi = 0
+		g.timestamp = ts
+		n, err := g.randomUint32()
+		if err != nil {
+			return Id{}, err
+		}
+		g.counterLo = n & maxCounterLo
+	}
+
+	if g.timestamp-g.tsCounterHi >= 1_000 {
+		g.tsCounterHi = g.timestamp
+		n, err := g.randomUint32()
+		if err != nil {
+			return Id{}, err
+		}
+		g.counterHi = n & maxCounterHi
 	}
 
 	n, err := g.randomUint32()
@@ -112,42 +119,4 @@ func (g *Generator) randomUint32() (uint32, error) {
 	buffer := make([]byte, 4)
 	_, err := g.rng.Read(buffer)
 	return binary.BigEndian.Uint32(buffer), err
-}
-
-// Defines the behavior on counter overflow.
-//
-// Currently, this method waits for the next clock tick and, if the clock does
-// not move forward for a while, reinitializes the generator state.
-func (g *Generator) handleCounterOverflow() {
-	if g.logger != nil {
-		g.logger.Warn("counter overflowing; will wait for next clock tick")
-	}
-	g.tsCounterHi = 0
-	for i := 0; i < 10_000; i++ {
-		time.Sleep(100 * time.Microsecond)
-		if uint64(time.Now().UnixMilli()) > g.timestamp {
-			return
-		}
-	}
-	if g.logger != nil {
-		g.logger.Warn("reset state as clock did not move for a while")
-	}
-	g.timestamp = 0
-}
-
-// Specifies the logger object used by the generator.
-//
-// Logging is disabled by default. Set a logger object to enable logging.
-//
-// The Warn method accepts fmt.Print-style arguments. The interface is
-// compatible with logrus and zap.
-func (g *Generator) SetLogger(logger interface{ Warn(args ...interface{}) }) {
-	g.logger = logger
-}
-
-// Error thrown when the monotonic counters can no more be incremented.
-type counterOverflowError struct{}
-
-func (_ *counterOverflowError) Error() string {
-	return "monotonic counters can not be incremented"
 }
