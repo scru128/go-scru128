@@ -9,37 +9,26 @@ import (
 	"time"
 )
 
-// Represents a SCRU128 ID generator that encapsulates the monotonic counter and
-// other internal states.
-type Generator interface {
-	// Generates a new SCRU128 ID object.
-	Generate() (id Id, err error)
-}
+// Represents a SCRU128 ID generator that encapsulates the monotonic counters
+// and other internal states.
+//
+// This structure must be instantiated by one of the dedicated constructors:
+// NewGenerator() or NewGeneratorWithRng(rng io.Reader).
+type Generator struct {
+	timestamp uint64
+	counterHi uint32
+	counterLo uint32
 
-type generatorImpl struct {
-	// Timestamp at last generation.
-	tsLastGen uint64
+	// Timestamp at the last renewal of counter_hi field.
+	tsCounterHi uint64
 
-	// Counter at last generation.
-	counter uint32
-
-	// Timestamp at last renewal of perSecRandom.
-	tsLastSec uint64
-
-	// Per-second random value at last generation.
-	perSecRandom uint32
-
-	// Maximum number of checking the system clock until it goes forward.
-	nClockCheckMax int
+	// Random number generator used by the generator.
+	rng io.Reader
 
 	lock sync.Mutex
-	rng  io.Reader
 }
 
 // Creates a generator object with the default random number generator.
-//
-// Generate() of the returned object is thread safe; multiple threads can call
-// it concurrently. The method returns non-nil err only when crypto/rand fails.
 //
 // The crypto/rand random number generator is quite slow for small reads on some
 // platforms. In such a case, wrapping crypto/rand with bufio.Reader may result
@@ -48,7 +37,7 @@ type generatorImpl struct {
 // bufio.NewReader(rand.Reader) to NewGeneratorWithRng():
 //
 //     go test -bench Generator
-func NewGenerator() Generator {
+func NewGenerator() *Generator {
 	// use small buffer to avoid both occasional unbearable performance
 	// degradation and waste of time and space for unused buffer contents
 	br := bufio.NewReaderSize(rand.Reader, 32)
@@ -58,88 +47,76 @@ func NewGenerator() Generator {
 // Creates a generator object with a specified random number generator. The
 // specified random number generator should be cryptographically strong and
 // securely seeded.
-//
-// Generate() of the returned object is thread safe; multiple threads can call
-// it concurrently. The method returns non-nil err only when the random number
-// generator fails.
-func NewGeneratorWithRng(rng io.Reader) Generator {
-	return &generatorImpl{nClockCheckMax: 1_000_000, rng: rng}
+func NewGeneratorWithRng(rng io.Reader) *Generator {
+	return &Generator{rng: rng}
 }
 
 // Generates a new SCRU128 ID object.
-func (g *generatorImpl) Generate() (id Id, err error) {
+//
+// This method is thread safe; multiple threads can call it concurrently. The
+// method returns non-nil err only when the random number generator fails.
+func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	return g.generateThreadUnsafe()
 }
 
 // Generates a new SCRU128 ID object without overhead for thread safety.
-func (g *generatorImpl) generateThreadUnsafe() (id Id, err error) {
-	// update timestamp and counter
-	tsNow := uint64(time.Now().UnixMilli())
-	if tsNow > g.tsLastGen {
-		g.tsLastGen = tsNow
+func (g *Generator) generateThreadUnsafe() (id Id, err error) {
+	ts := uint64(time.Now().UnixMilli())
+	if ts > g.timestamp {
+		g.timestamp = ts
 		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
-		g.counter = n & maxCounter
-	} else if g.counter++; g.counter > maxCounter {
-		if Logger != nil {
-			Logger.Info("counter limit reached; will wait until clock goes forward")
-		}
-		nClockCheck := 0
-		for tsNow <= g.tsLastGen {
-			tsNow = uint64(time.Now().UnixMilli())
-			if nClockCheck++; nClockCheck > g.nClockCheckMax {
-				if Logger != nil {
-					Logger.Warn("reset state as clock did not go forward")
+		g.counterLo = n & maxCounterLo
+	} else if ts+10_000 > g.timestamp {
+		g.counterLo++
+		if g.counterLo > maxCounterLo {
+			g.counterLo = 0
+			g.counterHi++
+			if g.counterHi > maxCounterHi {
+				g.counterHi = 0
+				// increment timestamp at counter overflow
+				g.timestamp++
+				n, err := g.randomUint32()
+				if err != nil {
+					return Id{}, err
 				}
-				g.tsLastSec = 0
-				break
+				g.counterLo = n & maxCounterLo
 			}
 		}
-
-		g.tsLastGen = tsNow
+	} else {
+		// reset state if clock moves back more than ten seconds
+		g.tsCounterHi = 0
+		g.timestamp = ts
 		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
-		g.counter = n & maxCounter
+		g.counterLo = n & maxCounterLo
 	}
 
-	// update perSecRandom
-	if g.tsLastGen-g.tsLastSec > 1_000 {
-		g.tsLastSec = g.tsLastGen
+	if g.timestamp-g.tsCounterHi >= 1_000 {
+		g.tsCounterHi = g.timestamp
 		n, err := g.randomUint32()
 		if err != nil {
 			return Id{}, err
 		}
-		g.perSecRandom = n & maxPerSecRandom
+		g.counterHi = n & maxCounterHi
 	}
 
 	n, err := g.randomUint32()
 	if err != nil {
 		return Id{}, err
 	}
-	return FromFields(tsNow-TimestampBias, g.counter, g.perSecRandom, n), nil
+	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
 }
 
 // Returns a random uint32 value.
-func (g *generatorImpl) randomUint32() (uint32, error) {
+func (g *Generator) randomUint32() (uint32, error) {
 	buffer := make([]byte, 4)
 	_, err := g.rng.Read(buffer)
 	return binary.BigEndian.Uint32(buffer), err
 }
-
-// Specifies the logger object used in the package.
-//
-// Logging is disabled by default. Set a thread-safe logger to enable logging.
-//
-// Each method accepts fmt.Print-style arguments. The interface is compatible
-// with logrus and zap.
-var Logger interface {
-	Error(args ...interface{})
-	Warn(args ...interface{})
-	Info(args ...interface{})
-} = nil

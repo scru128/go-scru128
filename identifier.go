@@ -5,8 +5,7 @@ import (
 	"errors"
 )
 
-// Represents a SCRU128 ID and provides various converters and comparison
-// operators.
+// Represents a SCRU128 ID and provides converters and comparison operators.
 type Id [16]byte
 
 // Creates a SCRU128 ID object from field values.
@@ -14,63 +13,63 @@ type Id [16]byte
 // This function panics if any argument is out of the value range of the field.
 func FromFields(
 	timestamp uint64,
-	counter uint32,
-	perSecRandom uint32,
-	perGenRandom uint32,
+	counterHi uint32,
+	counterLo uint32,
+	entropy uint32,
 ) Id {
-	if timestamp > 0xFFF_FFFF_FFFF ||
-		counter > maxCounter ||
-		perSecRandom > maxPerSecRandom {
+	if timestamp > 0xffff_ffff_ffff ||
+		counterHi > maxCounterHi ||
+		counterLo > maxCounterLo {
 		panic("invalid field value")
 	}
 
 	return Id{
-		byte(timestamp >> 36),
-		byte(timestamp >> 28),
-		byte(timestamp >> 20),
-		byte(timestamp >> 12),
-		byte(timestamp >> 4),
-		byte(timestamp<<4) | byte(counter>>24),
-		byte(counter >> 16),
-		byte(counter >> 8),
-		byte(counter),
-		byte(perSecRandom >> 16),
-		byte(perSecRandom >> 8),
-		byte(perSecRandom),
-		byte(perGenRandom >> 24),
-		byte(perGenRandom >> 16),
-		byte(perGenRandom >> 8),
-		byte(perGenRandom),
+		byte(timestamp >> 40),
+		byte(timestamp >> 32),
+		byte(timestamp >> 24),
+		byte(timestamp >> 16),
+		byte(timestamp >> 8),
+		byte(timestamp),
+		byte(counterHi >> 16),
+		byte(counterHi >> 8),
+		byte(counterHi),
+		byte(counterLo >> 16),
+		byte(counterLo >> 8),
+		byte(counterLo),
+		byte(entropy >> 24),
+		byte(entropy >> 16),
+		byte(entropy >> 8),
+		byte(entropy),
 	}
 }
 
-// Creates a SCRU128 ID object from a 26-digit string representation.
+// Creates a SCRU128 ID object from a 25-digit string representation.
 func Parse(strValue string) (id Id, err error) {
 	err = id.UnmarshalText([]byte(strValue))
 	return
 }
 
-// Returns the 44-bit millisecond timestamp field value.
+// Returns the 48-bit timestamp field value.
 func (bs Id) Timestamp() uint64 {
-	return bytesToUint64(bs[0:6]) >> 4
+	return bytesToUint64(bs[0:6])
 }
 
-// Returns the 28-bit per-timestamp monotonic counter field value.
-func (bs Id) Counter() uint32 {
-	return uint32(bytesToUint64(bs[5:9])) & maxCounter
+// Returns the 24-bit counter_hi field value.
+func (bs Id) CounterHi() uint32 {
+	return uint32(bytesToUint64(bs[6:9]))
 }
 
-// Returns the 24-bit per-second randomness field value.
-func (bs Id) PerSecRandom() uint32 {
+// Returns the 24-bit counter_lo field value.
+func (bs Id) CounterLo() uint32 {
 	return uint32(bytesToUint64(bs[9:12]))
 }
 
-// Returns the 32-bit per-generation randomness field value.
-func (bs Id) PerGenRandom() uint32 {
+// Returns the 32-bit entropy field value.
+func (bs Id) Entropy() uint32 {
 	return uint32(bytesToUint64(bs[12:16]))
 }
 
-// Returns the 26-digit canonical string representation.
+// Returns the 25-digit canonical string representation.
 func (bs Id) String() string {
 	buffer, _ := bs.MarshalText()
 	return string(buffer)
@@ -85,9 +84,8 @@ func (bs Id) Cmp(other Id) int {
 // Translates a big-endian byte sequence into uint64.
 func bytesToUint64(bigEndian []byte) uint64 {
 	var buffer uint64
-	for _, v := range bigEndian {
-		buffer <<= 8
-		buffer |= uint64(v)
+	for _, e := range bigEndian {
+		buffer = (buffer << 8) | uint64(e)
 	}
 	return buffer
 }
@@ -107,27 +105,41 @@ func (bs *Id) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// Digit characters used in the base 32 notation.
-var digits = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUV")
+// Digit characters used in the Base36 notation.
+var digits = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 // See encoding.TextMarshaler
 func (bs Id) MarshalText() (text []byte, err error) {
-	text = make([]byte, 26)
-	text[0] = digits[bs[0]>>5]
-	text[1] = digits[bs[0]&31]
-
-	// process three 40-bit (5-byte / 8-digit) groups
-	for i := 0; i < 3; i++ {
-		buffer := bytesToUint64(bs[1+i*5 : 6+i*5])
-		for j := 0; j < 8; j++ {
-			text[9+i*8-j] = digits[buffer&31]
-			buffer >>= 5
+	text = make([]byte, 25)
+	minIndex := 99 // any number greater than size of output array
+	for i := -5; i < 16; i += 7 {
+		// implement Base36 using 56-bit words
+		var word []byte
+		if i < 0 {
+			word = bs[0 : i+7]
+		} else {
+			word = bs[i : i+7]
 		}
+		var carry uint64 = bytesToUint64(word)
+
+		// iterate over output array from right to left while carry != 0 but at
+		// least up to place already filled
+		j := len(text) - 1
+		for ; carry > 0 || j > minIndex; j-- {
+			carry += uint64(text[j]) << 56
+			text[j] = byte(carry % 36)
+			carry = carry / 36
+		}
+		minIndex = j
+	}
+
+	for i, e := range text {
+		text[i] = digits[e]
 	}
 	return
 }
 
-// O(1) map from ASCII code points to base 32 digit values.
+// O(1) map from ASCII code points to Base36 digit values.
 var decodeMap = [256]byte{
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -135,10 +147,10 @@ var decodeMap = [256]byte{
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0x02, 0x03,
 	0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
-	0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0xff, 0xff, 0xff, 0xff,
+	0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 	0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-	0x1e, 0x1f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -153,27 +165,48 @@ var decodeMap = [256]byte{
 
 // See encoding.TextUnmarshaler
 func (bs *Id) UnmarshalText(text []byte) error {
-	if len(text) != 26 || decodeMap[text[0]] > 7 || decodeMap[text[1]] == 0xff {
-		return errors.New("invalid string representation")
+	if len(text) != 25 {
+		return errors.New("invalid length")
 	}
 
-	bs[0] = decodeMap[text[0]]<<5 | decodeMap[text[1]]
+	src := make([]byte, 25)
+	for i, e := range text {
+		src[i] = decodeMap[e]
+		if src[i] == 0xff {
+			return errors.New("invalid digit")
+		}
+	}
 
-	// process three 40-bit (5-byte / 8-digit) groups
-	for i := 0; i < 3; i++ {
-		var buffer uint64
-		for j := 0; j < 8; j++ {
-			n := decodeMap[text[2+i*8+j]]
-			if n == 0xff {
-				return errors.New("invalid string representation")
+	for i := range bs {
+		bs[i] = 0
+	}
+
+	minIndex := 99 // any number greater than size of output array
+	for i := -5; i < 25; i += 10 {
+		// implement Base36 using 10-digit words
+		var word []byte
+		if i < 0 {
+			word = src[0 : i+10]
+		} else {
+			word = src[i : i+10]
+		}
+		var carry uint64
+		for _, e := range word {
+			carry = (carry * 36) + uint64(e)
+		}
+
+		// iterate over output array from right to left while carry != 0 but at
+		// least up to place already filled
+		j := len(bs) - 1
+		for ; carry > 0 || j > minIndex; j-- {
+			if j < 0 {
+				return errors.New("out of 128-bit value range")
 			}
-			buffer <<= 5
-			buffer |= uint64(n)
+			carry += uint64(bs[j]) * 3656158440062976 // 36^10
+			bs[j] = byte(carry)
+			carry = carry >> 8
 		}
-		for j := 0; j < 5; j++ {
-			bs[5+i*5-j] = byte(buffer)
-			buffer >>= 8
-		}
+		minIndex = j
 	}
 	return nil
 }

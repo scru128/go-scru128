@@ -1,26 +1,26 @@
 // SCRU128: Sortable, Clock and Random number-based Unique identifier
 //
-// SCRU128 ID is yet another attempt to supersede UUID in the use cases that
-// need decentralized, globally unique time-ordered identifiers. SCRU128 is
-// inspired by ULID and KSUID and has the following features:
+// SCRU128 ID is yet another attempt to supersede UUID for the users who need
+// decentralized, globally unique time-ordered identifiers. SCRU128 is inspired
+// by ULID and KSUID and has the following features:
 //
 //   - 128-bit unsigned integer type
 //   - Sortable by generation time (as integer and as text)
-//   - 26-digit case-insensitive portable textual representation
-//   - 44-bit biased millisecond timestamp that ensures remaining life of 550
-//     years
-//   - Up to 268 million time-ordered but unpredictable unique IDs per
+//   - 25-digit case-insensitive textual representation (Base36)
+//   - 48-bit millisecond Unix timestamp that ensures useful life until year
+//     10889
+//   - Up to 281 trillion time-ordered but unpredictable unique IDs per
 //     millisecond
-//   - 84-bit _layered_ randomness for collision resistance
+//   - 80-bit three-layer randomness for global uniqueness
 //
 // See SCRU128 Specification for details: https://github.com/scru128/spec
 package scru128
 
-const maxCounter uint32 = 0xFFF_FFFF
-const maxPerSecRandom uint32 = 0xFF_FFFF
+// Maximum value of 24-bit counter_hi field.
+const maxCounterHi uint32 = 0xff_ffff
 
-// Unix time in milliseconds at 2020-01-01 00:00:00+00:00.
-const TimestampBias uint64 = 1577836800000
+// Maximum value of 24-bit counter_lo field.
+const maxCounterLo uint32 = 0xff_ffff
 
 var defaultGenerator = NewGenerator()
 

@@ -8,54 +8,53 @@ import (
 	"testing"
 )
 
-const maxUint44 uint64 = (1 << 44) - 1
-const maxUint28 uint32 = (1 << 28) - 1
+const maxUint48 uint64 = (1 << 48) - 1
 const maxUint24 uint32 = (1 << 24) - 1
 const maxUint32 uint32 = 0xFFFF_FFFF
 
 // Encodes and decodes prepared cases correctly
 func TestEncodeDecode(t *testing.T) {
 	cases := []struct {
-		timestamp    uint64
-		counter      uint32
-		perSecRandom uint32
-		perGenRandom uint32
-		string       string
+		timestamp uint64
+		counterHi uint32
+		counterLo uint32
+		entropy   uint32
+		string    string
 	}{
-		{0, 0, 0, 0, "00000000000000000000000000"},
-		{maxUint44, 0, 0, 0, "7VVVVVVVVG0000000000000000"},
-		{maxUint44, 0, 0, 0, "7vvvvvvvvg0000000000000000"},
-		{0, maxUint28, 0, 0, "000000000FVVVVU00000000000"},
-		{0, maxUint28, 0, 0, "000000000fvvvvu00000000000"},
-		{0, 0, maxUint24, 0, "000000000000001VVVVS000000"},
-		{0, 0, maxUint24, 0, "000000000000001vvvvs000000"},
-		{0, 0, 0, maxUint32, "00000000000000000003VVVVVV"},
-		{0, 0, 0, maxUint32, "00000000000000000003vvvvvv"},
-		{maxUint44, maxUint28, maxUint24, maxUint32, "7VVVVVVVVVVVVVVVVVVVVVVVVV"},
-		{maxUint44, maxUint28, maxUint24, maxUint32, "7vvvvvvvvvvvvvvvvvvvvvvvvv"},
+		{0, 0, 0, 0, "0000000000000000000000000"},
+		{maxUint48, 0, 0, 0, "F5LXX1ZZ5K6TP71GEEH2DB7K0"},
+		{maxUint48, 0, 0, 0, "f5lxx1zz5k6tp71geeh2db7k0"},
+		{0, maxUint24, 0, 0, "0000000005GV2R2KJWR7N8XS0"},
+		{0, maxUint24, 0, 0, "0000000005gv2r2kjwr7n8xs0"},
+		{0, 0, maxUint24, 0, "00000000000000JPIA7QL4HS0"},
+		{0, 0, maxUint24, 0, "00000000000000jpia7ql4hs0"},
+		{0, 0, 0, maxUint32, "0000000000000000001Z141Z3"},
+		{0, 0, 0, maxUint32, "0000000000000000001z141z3"},
+		{maxUint48, maxUint24, maxUint24, maxUint32, "F5LXX1ZZ5PNORYNQGLHZMSP33"},
+		{maxUint48, maxUint24, maxUint24, maxUint32, "f5lxx1zz5pnorynqglhzmsp33"},
 	}
 
 	for _, e := range cases {
 		var fromFields, fromString Id
 		fromFields = FromFields(
-			e.timestamp, e.counter, e.perSecRandom, e.perGenRandom,
+			e.timestamp, e.counterHi, e.counterLo, e.entropy,
 		)
 		fromString, _ = Parse(e.string)
 
-		caseStringAsBigInt, _ := new(big.Int).SetString(e.string, 32)
+		caseStringAsBigInt, _ := new(big.Int).SetString(e.string, 36)
 		if new(big.Int).SetBytes(fromFields[:]).Cmp(caseStringAsBigInt) != 0 ||
 			fromFields.Timestamp() != e.timestamp ||
-			fromFields.Counter() != e.counter ||
-			fromFields.PerSecRandom() != e.perSecRandom ||
-			fromFields.PerGenRandom() != e.perGenRandom ||
+			fromFields.CounterHi() != e.counterHi ||
+			fromFields.CounterLo() != e.counterLo ||
+			fromFields.Entropy() != e.entropy ||
 			fromFields.String() != strings.ToUpper(e.string) {
 			t.Fail()
 		}
 		if new(big.Int).SetBytes(fromString[:]).Cmp(caseStringAsBigInt) != 0 ||
 			fromString.Timestamp() != e.timestamp ||
-			fromString.Counter() != e.counter ||
-			fromString.PerSecRandom() != e.perSecRandom ||
-			fromString.PerGenRandom() != e.perGenRandom ||
+			fromString.CounterHi() != e.counterHi ||
+			fromString.CounterLo() != e.counterLo ||
+			fromString.Entropy() != e.entropy ||
 			fromString.String() != strings.ToUpper(e.string) {
 			t.Fail()
 		}
@@ -66,19 +65,18 @@ func TestEncodeDecode(t *testing.T) {
 func TestStringValidation(t *testing.T) {
 	cases := []string{
 		"",
-		" 00SCT4FL89GQPRHN44C4LFM0OV",
-		"00SCT4FL89GQPRJN44C7SQO381 ",
-		" 00SCT4FL89GQPRLN44C4BGCIIO ",
-		"+00SCT4FL89GQPRNN44C4F3QD24",
-		"-00SCT4FL89GQPRPN44C7H4E5RC",
-		"+0SCT4FL89GQPRRN44C55Q7RVC",
-		"-0SCT4FL89GQPRTN44C6PN0A2R",
-		"00SCT4FL89WQPRVN44C41RGVMM",
-		"00SCT4FL89GQPS1N4_C54QDC5O",
-		"00SCT4-L89GQPS3N44C602O0K8",
-		"00SCT4FL89GQPS N44C7VHS5QJ",
-		"80000000000000000000000000",
-		"VVVVVVVVVVVVVVVVVVVVVVVVVV",
+		" 036Z8PUQ4TSXSIGK6O19Y164Q",
+		"036Z8PUQ54QNY1VQ3HCBRKWEB ",
+		" 036Z8PUQ54QNY1VQ3HELIVWAX ",
+		"+036Z8PUQ54QNY1VQ3HFCV3SS0",
+		"-036Z8PUQ54QNY1VQ3HHY8U1CH",
+		"+36Z8PUQ54QNY1VQ3HJQ48D9P",
+		"-36Z8PUQ5A7J0TI08OZ6ZDRDY",
+		"036Z8PUQ5A7J0T_08P2CDZ28V",
+		"036Z8PU-5A7J0TI08P3OL8OOL",
+		"036Z8PUQ5A7J0TI08P4J 6CYA",
+		"F5LXX1ZZ5PNORYNQGLHZMSP34",
+		"ZZZZZZZZZZZZZZZZZZZZZZZZZ",
 	}
 
 	for _, e := range cases {
@@ -94,11 +92,11 @@ func TestStringValidation(t *testing.T) {
 func TestSymmetricConverters(t *testing.T) {
 	cases := []Id{
 		FromFields(0, 0, 0, 0),
-		FromFields(maxUint44, 0, 0, 0),
-		FromFields(0, maxUint28, 0, 0),
+		FromFields(maxUint48, 0, 0, 0),
+		FromFields(0, maxUint24, 0, 0),
 		FromFields(0, 0, maxUint24, 0),
 		FromFields(0, 0, 0, maxUint32),
-		FromFields(maxUint44, maxUint28, maxUint24, maxUint32),
+		FromFields(maxUint48, maxUint24, maxUint24, maxUint32),
 	}
 
 	g := NewGenerator()
@@ -112,7 +110,7 @@ func TestSymmetricConverters(t *testing.T) {
 			t.Fail()
 		}
 		if FromFields(
-			e.Timestamp(), e.Counter(), e.PerSecRandom(), e.PerGenRandom(),
+			e.Timestamp(), e.CounterHi(), e.CounterLo(), e.Entropy(),
 		) != e {
 			t.Fail()
 		}
@@ -142,7 +140,7 @@ func TestComparisonMethods(t *testing.T) {
 		FromFields(0, 0, 1, 0),
 		FromFields(0, 0, maxUint24, 0),
 		FromFields(0, 1, 0, 0),
-		FromFields(0, maxUint28, 0, 0),
+		FromFields(0, maxUint24, 0, 0),
 		FromFields(1, 0, 0, 0),
 		FromFields(2, 0, 0, 0),
 	}
