@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `Generator#GenerateCore()`
+
+### Maintenance
+
+- Updated README
+
 ## v2.0.0 - 2022-05-01
 
 ### Changed

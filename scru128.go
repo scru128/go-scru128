@@ -16,6 +16,9 @@
 // See SCRU128 Specification for details: https://github.com/scru128/spec
 package scru128
 
+// Maximum value of 48-bit timestamp field.
+const maxTimestamp uint64 = 0xffff_ffff_ffff
+
 // Maximum value of 24-bit counter_hi field.
 const maxCounterHi uint32 = 0xff_ffff
 
@@ -26,7 +29,7 @@ var defaultGenerator = NewGenerator()
 
 // Generates a new SCRU128 ID object, or panics if crypto/rand fails.
 //
-// This function is thread safe; multiple threads can call it concurrently.
+// This function is thread-safe; multiple threads can call it concurrently.
 func New() Id {
 	id, err := defaultGenerator.Generate()
 	if err != nil {
@@ -38,7 +41,7 @@ func New() Id {
 // Generates a new SCRU128 ID encoded in the 26-digit canonical string
 // representation, or panics if crypto/rand fails.
 //
-// This function is thread safe. Use this to quickly get a new SCRU128 ID as a
+// This function is thread-safe. Use this to quickly get a new SCRU128 ID as a
 // string.
 func NewString() string {
 	return New().String()
