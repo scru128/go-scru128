@@ -4,7 +4,7 @@
 
 ### Added
 
-- `Generator#GenerateCore()`
+- `GenerateCore()` and `LastStatus()` to Generator
 
 ### Maintenance
 

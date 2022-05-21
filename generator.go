@@ -21,6 +21,9 @@ type Generator struct {
 	// Timestamp at the last renewal of counter_hi field.
 	tsCounterHi uint64
 
+	// Status code reported at the last generation.
+	lastStatus GeneratorStatus
+
 	// Random number generator used by the generator.
 	rng io.Reader
 
@@ -57,8 +60,7 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	id, _, err = g.GenerateCore(uint64(time.Now().UnixMilli()))
-	return id, err
+	return g.GenerateCore(uint64(time.Now().UnixMilli()))
 }
 
 // Generates a new SCRU128 ID object with the timestamp passed.
@@ -67,44 +69,39 @@ func (g *Generator) Generate() (id Id, err error) {
 // should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
-// This method returns a generated ID and a GeneratorStatus code that indicates
-// the internal state involved in the generation. Callers can usually ignore the
-// status unless the monotonic order of generated IDs is critically important.
-//
-// This method returns non-nil err only when the random number generator fails.
-func (g *Generator) GenerateCore(timestamp uint64) (
-	id Id, status GeneratorStatus, err error,
-) {
+// This method panics if the argument is not a 48-bit unsigned integer and
+// returns non-nil err if the random number generator fails.
+func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 	if timestamp > maxTimestamp {
 		panic("`timestamp` must be a 48-bit unsigned integer")
 	}
 
 	var n uint32
-	status = GeneratorStatusNewTimestamp
+	g.lastStatus = GeneratorStatusNewTimestamp
 	if timestamp > g.timestamp {
 		g.timestamp = timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			return Id{}, GeneratorStatusError, err
+			goto Error
 		}
 		g.counterLo = n & maxCounterLo
 	} else if timestamp+10_000 > g.timestamp {
 		g.counterLo++
-		status = GeneratorStatusCounterLoInc
+		g.lastStatus = GeneratorStatusCounterLoInc
 		if g.counterLo > maxCounterLo {
 			g.counterLo = 0
 			g.counterHi++
-			status = GeneratorStatusCounterHiInc
+			g.lastStatus = GeneratorStatusCounterHiInc
 			if g.counterHi > maxCounterHi {
 				g.counterHi = 0
 				// increment timestamp at counter overflow
 				g.timestamp++
 				n, err = g.randomUint32()
 				if err != nil {
-					return Id{}, GeneratorStatusError, err
+					goto Error
 				}
 				g.counterLo = n & maxCounterLo
-				status = GeneratorStatusTimestampInc
+				g.lastStatus = GeneratorStatusTimestampInc
 			}
 		}
 	} else {
@@ -113,37 +110,54 @@ func (g *Generator) GenerateCore(timestamp uint64) (
 		g.timestamp = timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			return Id{}, GeneratorStatusError, err
+			goto Error
 		}
 		g.counterLo = n & maxCounterLo
-		status = GeneratorStatusClockRollback
+		g.lastStatus = GeneratorStatusClockRollback
 	}
 
 	if g.timestamp-g.tsCounterHi >= 1_000 {
 		g.tsCounterHi = g.timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			return Id{}, GeneratorStatusError, err
+			goto Error
 		}
 		g.counterHi = n & maxCounterHi
 	}
 
 	n, err = g.randomUint32()
 	if err != nil {
-		return Id{}, GeneratorStatusError, err
+		goto Error
 	}
-	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), status, nil
+	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
+
+Error:
+	g.lastStatus = GeneratorStatusError
+	return Id{}, err
 }
 
-// Status code reported by GenerateCore() method.
+// Returns a GeneratorStatus code that indicates the internal state involved in
+// the last generation of ID.
+//
+// Note that the generator object should be protected from concurrent accesses
+// during the sequential calls to a generation method and this method to avoid
+// race conditions.
+func (g *Generator) LastStatus() GeneratorStatus {
+	return g.lastStatus
+}
+
+// Status code returned by LastStatus() method.
 type GeneratorStatus string
 
 const (
-	// Indicates that the timestamp passed was used because it was greater than
+	// Indicates that the generator has yet to generate an ID.
+	GeneratorStatusNotExecuted GeneratorStatus = ""
+
+	// Indicates that the latest timestamp was used because it was greater than
 	// the previous one.
 	GeneratorStatusNewTimestamp GeneratorStatus = "NewTimestamp"
 
-	// Indicates that counter_lo was incremented because the timestamp passed was
+	// Indicates that counter_lo was incremented because the latest timestamp was
 	// no greater than the previous one.
 	GeneratorStatusCounterLoInc GeneratorStatus = "CounterLoInc"
 
@@ -156,10 +170,10 @@ const (
 	GeneratorStatusTimestampInc GeneratorStatus = "TimestampInc"
 
 	// Indicates that the monotonic order of generated IDs was broken because the
-	// timestamp passed was less than the previous one by ten seconds or more.
+	// latest timestamp was less than the previous one by ten seconds or more.
 	GeneratorStatusClockRollback GeneratorStatus = "ClockRollback"
 
-	// Returned together with non-nil error.
+	// Indicates that the previous generation failed.
 	GeneratorStatusError GeneratorStatus = "Error"
 )
 
