@@ -1,10 +1,16 @@
 # Changelog
 
+## v2.1.1 - 2022-05-23
+
+### Fixed
+
+- `GenerateCore()` to reject zero as `timestamp` value
+
 ## v2.1.0 - 2022-05-22
 
 ### Added
 
-- `GenerateCore()` and `LastStatus()` to Generator
+- `GenerateCore()` and `LastStatus()` to `Generator`
 
 ### Maintenance
 

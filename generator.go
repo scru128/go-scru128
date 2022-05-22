@@ -69,11 +69,11 @@ func (g *Generator) Generate() (id Id, err error) {
 // should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
-// This method panics if the argument is not a 48-bit unsigned integer and
+// This method panics if the argument is not a 48-bit positive integer and
 // returns non-nil err if the random number generator fails.
 func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
-	if timestamp > maxTimestamp {
-		panic("`timestamp` must be a 48-bit unsigned integer")
+	if timestamp == 0 || timestamp > maxTimestamp {
+		panic("`timestamp` must be a 48-bit positive integer")
 	}
 
 	var n uint32
