@@ -17,7 +17,7 @@ func FromFields(
 	counterLo uint32,
 	entropy uint32,
 ) Id {
-	if timestamp > 0xffff_ffff_ffff ||
+	if timestamp > maxTimestamp ||
 		counterHi > maxCounterHi ||
 		counterLo > maxCounterLo {
 		panic("invalid field value")
