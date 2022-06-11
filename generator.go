@@ -116,7 +116,7 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 		g.lastStatus = GeneratorStatusClockRollback
 	}
 
-	if g.timestamp-g.tsCounterHi >= 1_000 {
+	if g.timestamp-g.tsCounterHi >= 1_000 || g.tsCounterHi == 0 {
 		g.tsCounterHi = g.timestamp
 		n, err = g.randomUint32()
 		if err != nil {
