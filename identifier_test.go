@@ -2,7 +2,9 @@ package scru128
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -181,4 +183,14 @@ func TestSerializedForm(t *testing.T) {
 			t.Fail()
 		}
 	}
+}
+
+// Ensures compliance with interfaces.
+func TestInterfaces(t *testing.T) {
+	var x Id
+	var _ fmt.Stringer = x
+	var _ encoding.TextMarshaler = x
+	var _ encoding.TextUnmarshaler = &x
+	var _ encoding.BinaryMarshaler = x
+	var _ encoding.BinaryUnmarshaler = &x
 }
