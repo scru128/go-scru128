@@ -97,7 +97,10 @@ func (bs Id) MarshalBinary() (data []byte, err error) {
 
 // See encoding.BinaryUnmarshaler
 func (bs *Id) UnmarshalBinary(data []byte) error {
-	if len(bs) != len(data) {
+	if bs == nil {
+		return errors.New("nil receiver")
+	}
+	if len(data) != 16 {
 		return errors.New("not a 128-bit byte array")
 	}
 
@@ -165,6 +168,9 @@ var decodeMap = [256]byte{
 
 // See encoding.TextUnmarshaler
 func (bs *Id) UnmarshalText(text []byte) error {
+	if bs == nil {
+		return errors.New("nil receiver")
+	}
 	if len(text) != 25 {
 		return errors.New("invalid length")
 	}

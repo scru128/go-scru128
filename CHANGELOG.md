@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `UnmarshalText()` and `UnmarshalBinary()` of `Id` now return error instead of
+  panicking when called with nil receiver
+
 ## v2.1.2 - 2022-06-11
 
 ### Fixed
