@@ -216,3 +216,18 @@ func (bs *Id) UnmarshalText(text []byte) error {
 	}
 	return nil
 }
+
+// See sql.Scanner
+func (bs *Id) Scan(src any) error {
+	if bs == nil {
+		return errors.New("nil receiver")
+	}
+	switch src := src.(type) {
+	case string:
+		return bs.UnmarshalText([]byte(src))
+	case []byte:
+		return bs.UnmarshalBinary(src)
+	default:
+		return errors.New("unsupported type conversion")
+	}
+}

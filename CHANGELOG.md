@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `sql.Scanner` interface implementation to `Id`
+
 ### Fixed
 
 - `UnmarshalText()` and `UnmarshalBinary()` of `Id` now return error instead of

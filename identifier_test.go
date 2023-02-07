@@ -2,6 +2,7 @@ package scru128
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding"
 	"encoding/json"
 	"fmt"
@@ -123,11 +124,21 @@ func TestSymmetricConverters(t *testing.T) {
 		if *unmarshaledBinary != e {
 			t.Fail()
 		}
+		scannedBinary := new(Id)
+		scannedBinary.Scan(marshaledBinary)
+		if *scannedBinary != e {
+			t.Fail()
+		}
 
 		marshaledText, _ := e.MarshalText()
 		unmarshaledText := new(Id)
 		unmarshaledText.UnmarshalText(marshaledText)
 		if *unmarshaledText != e {
+			t.Fail()
+		}
+		scannedText := new(Id)
+		scannedText.Scan(string(marshaledText))
+		if *scannedText != e {
 			t.Fail()
 		}
 	}
@@ -193,4 +204,5 @@ func TestInterfaces(t *testing.T) {
 	var _ encoding.TextUnmarshaler = &x
 	var _ encoding.BinaryMarshaler = x
 	var _ encoding.BinaryUnmarshaler = &x
+	var _ sql.Scanner = &x
 }
