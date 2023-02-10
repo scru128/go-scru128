@@ -100,12 +100,12 @@ func (bs *Id) UnmarshalBinary(data []byte) error {
 	if bs == nil {
 		return errors.New("nil receiver")
 	}
-	if len(data) != 16 {
-		return errors.New("not a 128-bit byte array")
+	if len(data) == 16 {
+		copy(bs[:], data)
+		return nil
 	}
+	return bs.UnmarshalText(data)
 
-	copy(bs[:], data)
-	return nil
 }
 
 // Digit characters used in the Base36 notation.

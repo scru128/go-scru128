@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v2.2.0 - unreleased
+
+### Changed
+
+- `UnmarshalBinary()` behavior so it tries to parse byte slice also as textual
+  representation, not only as 128-bit byte array
 
 ### Added
 

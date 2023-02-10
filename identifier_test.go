@@ -119,26 +119,26 @@ func TestSymmetricConverters(t *testing.T) {
 		}
 
 		marshaledBinary, _ := e.MarshalBinary()
-		unmarshaledBinary := new(Id)
-		unmarshaledBinary.UnmarshalBinary(marshaledBinary)
-		if *unmarshaledBinary != e {
+		marshaledText, _ := e.MarshalText()
+		unmarshaled := new(Id)
+		if unmarshaled.UnmarshalBinary(marshaledBinary) != nil || *unmarshaled != e {
 			t.Fail()
 		}
-		scannedBinary := new(Id)
-		scannedBinary.Scan(marshaledBinary)
-		if *scannedBinary != e {
+		if unmarshaled.UnmarshalBinary(marshaledText) != nil || *unmarshaled != e {
+			t.Fail()
+		}
+		if unmarshaled.UnmarshalText(marshaledText) != nil || *unmarshaled != e {
 			t.Fail()
 		}
 
-		marshaledText, _ := e.MarshalText()
-		unmarshaledText := new(Id)
-		unmarshaledText.UnmarshalText(marshaledText)
-		if *unmarshaledText != e {
+		scanned := new(Id)
+		if scanned.Scan(e.String()) != nil || *scanned != e {
 			t.Fail()
 		}
-		scannedText := new(Id)
-		scannedText.Scan(string(marshaledText))
-		if *scannedText != e {
+		if scanned.Scan(marshaledBinary) != nil || *scanned != e {
+			t.Fail()
+		}
+		if scanned.Scan(marshaledText) != nil || *scanned != e {
 			t.Fail()
 		}
 	}
@@ -190,7 +190,7 @@ func TestSerializedForm(t *testing.T) {
 		marshaled, _ := json.Marshal(obj)
 		unmarshaled := new(Id)
 		json.Unmarshal(strJson, unmarshaled)
-		if bytes.Compare(marshaled, strJson) != 0 || *unmarshaled != obj {
+		if !bytes.Equal(marshaled, strJson) || *unmarshaled != obj {
 			t.Fail()
 		}
 	}
