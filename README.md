@@ -39,4 +39,4 @@ Licensed under the Apache License, Version 2.0.
 
 ## See also
 
-- [scru128 package - github.com/scru128/go-scru128/v2 - pkg.go.dev](https://pkg.go.dev/github.com/scru128/go-scru128/v2)
+- [scru128 package - github.com/scru128/go-scru128/v2 - Go Packages](https://pkg.go.dev/github.com/scru128/go-scru128/v2)
