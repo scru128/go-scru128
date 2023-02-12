@@ -2,7 +2,10 @@ package scru128
 
 import (
 	"bytes"
+	"database/sql"
+	"encoding"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -116,16 +119,26 @@ func TestSymmetricConverters(t *testing.T) {
 		}
 
 		marshaledBinary, _ := e.MarshalBinary()
-		unmarshaledBinary := new(Id)
-		unmarshaledBinary.UnmarshalBinary(marshaledBinary)
-		if *unmarshaledBinary != e {
+		marshaledText, _ := e.MarshalText()
+		unmarshaled := new(Id)
+		if unmarshaled.UnmarshalBinary(marshaledBinary) != nil || *unmarshaled != e {
+			t.Fail()
+		}
+		if unmarshaled.UnmarshalBinary(marshaledText) != nil || *unmarshaled != e {
+			t.Fail()
+		}
+		if unmarshaled.UnmarshalText(marshaledText) != nil || *unmarshaled != e {
 			t.Fail()
 		}
 
-		marshaledText, _ := e.MarshalText()
-		unmarshaledText := new(Id)
-		unmarshaledText.UnmarshalText(marshaledText)
-		if *unmarshaledText != e {
+		scanned := new(Id)
+		if scanned.Scan(e.String()) != nil || *scanned != e {
+			t.Fail()
+		}
+		if scanned.Scan(marshaledBinary) != nil || *scanned != e {
+			t.Fail()
+		}
+		if scanned.Scan(marshaledText) != nil || *scanned != e {
 			t.Fail()
 		}
 	}
@@ -177,8 +190,19 @@ func TestSerializedForm(t *testing.T) {
 		marshaled, _ := json.Marshal(obj)
 		unmarshaled := new(Id)
 		json.Unmarshal(strJson, unmarshaled)
-		if bytes.Compare(marshaled, strJson) != 0 || *unmarshaled != obj {
+		if !bytes.Equal(marshaled, strJson) || *unmarshaled != obj {
 			t.Fail()
 		}
 	}
+}
+
+// Ensures compliance with interfaces.
+func TestInterfaces(t *testing.T) {
+	var x Id
+	var _ fmt.Stringer = x
+	var _ encoding.TextMarshaler = x
+	var _ encoding.TextUnmarshaler = &x
+	var _ encoding.BinaryMarshaler = x
+	var _ encoding.BinaryUnmarshaler = &x
+	var _ sql.Scanner = &x
 }

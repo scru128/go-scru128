@@ -97,12 +97,15 @@ func (bs Id) MarshalBinary() (data []byte, err error) {
 
 // See encoding.BinaryUnmarshaler
 func (bs *Id) UnmarshalBinary(data []byte) error {
-	if len(bs) != len(data) {
-		return errors.New("not a 128-bit byte array")
+	if bs == nil {
+		return errors.New("nil receiver")
 	}
+	if len(data) == 16 {
+		copy(bs[:], data)
+		return nil
+	}
+	return bs.UnmarshalText(data)
 
-	copy(bs[:], data)
-	return nil
 }
 
 // Digit characters used in the Base36 notation.
@@ -165,6 +168,9 @@ var decodeMap = [256]byte{
 
 // See encoding.TextUnmarshaler
 func (bs *Id) UnmarshalText(text []byte) error {
+	if bs == nil {
+		return errors.New("nil receiver")
+	}
 	if len(text) != 25 {
 		return errors.New("invalid length")
 	}
@@ -209,4 +215,19 @@ func (bs *Id) UnmarshalText(text []byte) error {
 		minIndex = j
 	}
 	return nil
+}
+
+// See sql.Scanner
+func (bs *Id) Scan(src any) error {
+	if bs == nil {
+		return errors.New("nil receiver")
+	}
+	switch src := src.(type) {
+	case string:
+		return bs.UnmarshalText([]byte(src))
+	case []byte:
+		return bs.UnmarshalBinary(src)
+	default:
+		return errors.New("unsupported type conversion")
+	}
 }

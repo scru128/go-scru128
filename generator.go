@@ -38,7 +38,7 @@ type Generator struct {
 // an important issue, check out the following benchmark tests and pass
 // bufio.NewReader(rand.Reader) to NewGeneratorWithRng():
 //
-//     go test -bench Generator
+//	go test -bench Generator
 func NewGenerator() *Generator {
 	// use small buffer by default to avoid both occasional unbearable performance
 	// degradation and waste of time and space for unused buffer contents

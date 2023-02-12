@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.2.0 - 2023-02-12
+
+### Changed
+
+- `UnmarshalBinary()` behavior so it tries to parse byte slice also as textual
+  representation, not only as 128-bit byte array
+- `UnmarshalText()` and `UnmarshalBinary()` of `Id` now return error instead of
+  panicking when called with nil receiver
+
+### Added
+
+- `sql.Scanner` interface implementation to `Id`
+
 ## v2.1.2 - 2022-06-11
 
 ### Fixed
