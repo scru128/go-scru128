@@ -193,6 +193,8 @@ RngError:
 	return Id{}, err
 }
 
+// Deprecated: use GenerateMonotonic() to guarantee monotonicity.
+//
 // Returns a GeneratorStatus code that indicates the internal state involved in
 // the last generation of ID.
 //
