@@ -72,6 +72,97 @@ func TestTimestampRollback(t *testing.T) {
 	if curr.Timestamp() != ts-10_000 {
 		t.Fail()
 	}
+
+	prev = curr
+	curr, _ = g.GenerateCore(ts - 10_001)
+	if g.LastStatus() != GeneratorStatusCounterLoInc &&
+		g.LastStatus() != GeneratorStatusCounterHiInc &&
+		g.LastStatus() != GeneratorStatusTimestampInc {
+		t.Fail()
+	}
+	if prev.Cmp(curr) >= 0 {
+		t.Fail()
+	}
+}
+
+// Generates increasing IDs even with decreasing or constant timestamp
+func TestDecreasingOrConstantTimestampMonotonic(t *testing.T) {
+	var ts uint64 = 0x0123_4567_89ab
+	var g *Generator = NewGenerator()
+	if g.LastStatus() != GeneratorStatusNotExecuted {
+		t.Fail()
+	}
+
+	prev, err := g.GenerateCoreMonotonic(ts)
+	if err == ErrClockRollback {
+		t.Fail()
+	}
+	if g.LastStatus() != GeneratorStatusNewTimestamp {
+		t.Fail()
+	}
+	if prev.Timestamp() != ts {
+		t.Fail()
+	}
+
+	for i := uint64(0); i < 100_000; i++ {
+		var curr Id
+		if i < 9_998 {
+			curr, err = g.GenerateCoreMonotonic(ts - i)
+		} else {
+			curr, err = g.GenerateCoreMonotonic(ts - 9_998)
+		}
+		if err == ErrClockRollback {
+			t.Fail()
+		}
+		if g.LastStatus() != GeneratorStatusCounterLoInc &&
+			g.LastStatus() != GeneratorStatusCounterHiInc &&
+			g.LastStatus() != GeneratorStatusTimestampInc {
+			t.Fail()
+		}
+		if prev.Cmp(curr) >= 0 {
+			t.Fail()
+		}
+		prev = curr
+	}
+	if prev.Timestamp() < ts {
+		t.Fail()
+	}
+}
+
+// Returns ErrClockRollback if timestamp moves backward a lot
+func TestTimestampRollbackMonotonic(t *testing.T) {
+	var ts uint64 = 0x0123_4567_89ab
+	var g *Generator = NewGenerator()
+	if g.LastStatus() != GeneratorStatusNotExecuted {
+		t.Fail()
+	}
+
+	prev, err := g.GenerateCoreMonotonic(ts)
+	if err == ErrClockRollback {
+		t.Fail()
+	}
+	if g.LastStatus() != GeneratorStatusNewTimestamp {
+		t.Fail()
+	}
+	if prev.Timestamp() != ts {
+		t.Fail()
+	}
+
+	_, err = g.GenerateCoreMonotonic(ts - 10_000)
+	if err != ErrClockRollback {
+		t.Fail()
+	}
+	if g.LastStatus() != GeneratorStatusNewTimestamp {
+		t.Fail()
+	}
+
+	_, err = g.GenerateCoreMonotonic(ts - 10_001)
+	if err != ErrClockRollback {
+		t.Fail()
+	}
+	if g.LastStatus() != GeneratorStatusNewTimestamp {
+		t.Fail()
+	}
 }
 
 func BenchmarkGeneratorDefault(b *testing.B) {

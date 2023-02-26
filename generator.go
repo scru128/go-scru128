@@ -3,6 +3,7 @@ package scru128
 import (
 	"bufio"
 	"crypto/rand"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -53,39 +54,102 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 	return &Generator{rng: rng}
 }
 
-// Generates a new SCRU128 ID object.
+// Generates a new SCRU128 ID object from the current timestamp.
+//
+// This method returns monotonically increasing IDs unless the up-to-date
+// timestamp is significantly (by ten seconds or more) smaller than the one
+// embedded in the immediately preceding ID. If such a significant clock
+// rollback is detected, this method resets the generator state and returns a
+// new ID based on the up-to-date timestamp.
 //
 // This method is thread-safe; multiple threads can call it concurrently. The
-// method returns non-nil err only when the random number generator fails.
+// method returns a non-nil err only when the random number generator fails.
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	return g.GenerateCore(uint64(time.Now().UnixMilli()))
 }
 
-// Generates a new SCRU128 ID object with the timestamp passed.
+// Generates a new SCRU128 ID object from the current timestamp, guaranteeing
+// that the returned ID is greater than the immediately preceding one generated
+// by the same generator.
+//
+// This method returns monotonically increasing IDs unless the up-to-date
+// timestamp is significantly (by ten seconds or more) smaller than the one
+// embedded in the immediately preceding ID. If such a significant clock
+// rollback is detected, this method returns ErrClockRollback as err and keeps
+// the generator state untouched.
+//
+// This method is thread-safe; multiple threads can call it concurrently. The
+// method returns a non-nil err if the random number generator fails or the
+// clock rollback discussed above is detected..
+func (g *Generator) GenerateMonotonic() (id Id, err error) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	return g.GenerateCoreMonotonic(uint64(time.Now().UnixMilli()))
+}
+
+// Generates a new SCRU128 ID object from the timestamp passed.
+//
+// This method returns monotonically increasing IDs unless a given timestamp is
+// significantly (by ten seconds or more) smaller than the one embedded in the
+// immediately preceding ID. If such a significant clock rollback is detected,
+// this method resets the generator state and returns a new ID based on the
+// given argument.
 //
 // Unlike Generate(), this method is NOT thread-safe. The generator object
 // should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
 // This method panics if the argument is not a 48-bit positive integer and
-// returns non-nil err if the random number generator fails.
+// returns a non-nil err if the random number generator fails.
 func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
+	id, err = g.GenerateCoreMonotonic(timestamp)
+	if err == ErrClockRollback {
+		// reset state and resume
+		g.timestamp = 0
+		g.tsCounterHi = 0
+		id, err = g.GenerateCoreMonotonic(timestamp)
+		g.lastStatus = GeneratorStatusClockRollback
+	}
+	return
+}
+
+// Generates a new SCRU128 ID object from the timestamp passed, guaranteeing
+// that the returned ID is greater than the immediately preceding one generated
+// by the same generator.
+//
+// This method returns monotonically increasing IDs unless a given timestamp is
+// significantly (by ten seconds or more) smaller than the one embedded in the
+// immediately preceding ID. If such a significant clock rollback is detected,
+// this method returns ErrClockRollback as err and keeps the generator state
+// untouched.
+//
+// Unlike GenerateMonotonic(), this method is NOT thread-safe. The generator
+// object should be protected from concurrent accesses using a mutex or other
+// synchronization mechanism to avoid race conditions.
+//
+// This method panics if the argument is not a 48-bit positive integer and
+// returns a non-nil err if the random number generator fails or the clock
+// rollback discussed above is detected.
+func (g *Generator) GenerateCoreMonotonic(timestamp uint64) (id Id, err error) {
+	const rollbackAllowance = 10_000 // 10 seconds
+
 	if timestamp == 0 || timestamp > maxTimestamp {
 		panic("`timestamp` must be a 48-bit positive integer")
 	}
 
 	var n uint32
-	g.lastStatus = GeneratorStatusNewTimestamp
 	if timestamp > g.timestamp {
 		g.timestamp = timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto Error
+			goto RngError
 		}
 		g.counterLo = n & maxCounterLo
-	} else if timestamp+10_000 > g.timestamp {
+		g.lastStatus = GeneratorStatusNewTimestamp
+	} else if timestamp+rollbackAllowance > g.timestamp {
+		// go on with previous timestamp if new one is not much smaller
 		g.counterLo++
 		g.lastStatus = GeneratorStatusCounterLoInc
 		if g.counterLo > maxCounterLo {
@@ -98,40 +162,33 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 				g.timestamp++
 				n, err = g.randomUint32()
 				if err != nil {
-					goto Error
+					goto RngError
 				}
 				g.counterLo = n & maxCounterLo
 				g.lastStatus = GeneratorStatusTimestampInc
 			}
 		}
 	} else {
-		// reset state if clock moves back by ten seconds or more
-		g.tsCounterHi = 0
-		g.timestamp = timestamp
-		n, err = g.randomUint32()
-		if err != nil {
-			goto Error
-		}
-		g.counterLo = n & maxCounterLo
-		g.lastStatus = GeneratorStatusClockRollback
+		// abort if clock moves back to unbearable extent
+		return Id{}, ErrClockRollback
 	}
 
 	if g.timestamp-g.tsCounterHi >= 1_000 || g.tsCounterHi == 0 {
 		g.tsCounterHi = g.timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto Error
+			goto RngError
 		}
 		g.counterHi = n & maxCounterHi
 	}
 
 	n, err = g.randomUint32()
 	if err != nil {
-		goto Error
+		goto RngError
 	}
 	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
 
-Error:
+RngError:
 	g.lastStatus = GeneratorStatusError
 	return Id{}, err
 }
@@ -145,6 +202,11 @@ Error:
 func (g *Generator) LastStatus() GeneratorStatus {
 	return g.lastStatus
 }
+
+// Error value returned by GenerateMonotonic() and GenerateCoreMonotonic() when
+// the relevant timestamp is significantly smaller than the one embedded in the
+// immediately preceding ID generated by the generator.
+var ErrClockRollback = errors.New("scru128: detected unbearable clock rollback")
 
 // Status code returned by LastStatus() method.
 type GeneratorStatus string

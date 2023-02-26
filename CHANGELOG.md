@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.3.0 - unreleased
+
+### Added
+
+- `GenerateMonotonic()` and `GenerateCoreMonotonic()` to `Generator`
+
 ## v2.2.0 - 2023-02-12
 
 ### Changed
