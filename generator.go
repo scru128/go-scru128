@@ -59,7 +59,7 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 // This method returns monotonically increasing IDs unless the up-to-date
 // timestamp is significantly (by ten seconds or more) smaller than the one
 // embedded in the immediately preceding ID. If such a significant clock
-// rollback is detected, this method resets the generator state and returns a
+// rollback is detected, this method rewinds the generator state and returns a
 // new ID based on the up-to-date timestamp.
 //
 // This method is thread-safe; multiple threads can call it concurrently. The
@@ -71,8 +71,8 @@ func (g *Generator) Generate() (id Id, err error) {
 }
 
 // Generates a new SCRU128 ID object from the current timestamp, guaranteeing
-// that the returned ID is greater than the immediately preceding one generated
-// by the same generator.
+// the monotonic order of generated IDs despite a significant timestamp
+// rollback.
 //
 // This method returns monotonically increasing IDs unless the up-to-date
 // timestamp is significantly (by ten seconds or more) smaller than the one
@@ -83,10 +83,10 @@ func (g *Generator) Generate() (id Id, err error) {
 // This method is thread-safe; multiple threads can call it concurrently. The
 // method returns a non-nil err if the random number generator fails or the
 // clock rollback discussed above is detected..
-func (g *Generator) GenerateMonotonic() (id Id, err error) {
+func (g *Generator) GenerateNoRewind() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	return g.GenerateCoreMonotonic(uint64(time.Now().UnixMilli()))
+	return g.GenerateCoreNoRewind(uint64(time.Now().UnixMilli()))
 }
 
 // Generates a new SCRU128 ID object from the timestamp passed.
@@ -94,7 +94,7 @@ func (g *Generator) GenerateMonotonic() (id Id, err error) {
 // This method returns monotonically increasing IDs unless a given timestamp is
 // significantly (by ten seconds or more) smaller than the one embedded in the
 // immediately preceding ID. If such a significant clock rollback is detected,
-// this method resets the generator state and returns a new ID based on the
+// this method rewinds the generator state and returns a new ID based on the
 // given argument.
 //
 // Unlike Generate(), this method is NOT thread-safe. The generator object
@@ -104,20 +104,19 @@ func (g *Generator) GenerateMonotonic() (id Id, err error) {
 // This method panics if the argument is not a 48-bit positive integer and
 // returns a non-nil err if the random number generator fails.
 func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
-	id, err = g.GenerateCoreMonotonic(timestamp)
+	id, err = g.GenerateCoreNoRewind(timestamp)
 	if err == ErrClockRollback {
 		// reset state and resume
 		g.timestamp = 0
 		g.tsCounterHi = 0
-		id, err = g.GenerateCoreMonotonic(timestamp)
+		id, err = g.GenerateCoreNoRewind(timestamp)
 		g.lastStatus = GeneratorStatusClockRollback
 	}
 	return
 }
 
-// Generates a new SCRU128 ID object from the timestamp passed, guaranteeing
-// that the returned ID is greater than the immediately preceding one generated
-// by the same generator.
+// Generates a new SCRU128 ID object from the timestamp passed, guaranteeing the
+// monotonic order of generated IDs despite a significant timestamp rollback.
 //
 // This method returns monotonically increasing IDs unless a given timestamp is
 // significantly (by ten seconds or more) smaller than the one embedded in the
@@ -125,14 +124,14 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 // this method returns ErrClockRollback as err and keeps the generator state
 // untouched.
 //
-// Unlike GenerateMonotonic(), this method is NOT thread-safe. The generator
+// Unlike GenerateNoRewind(), this method is NOT thread-safe. The generator
 // object should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
 // This method panics if the argument is not a 48-bit positive integer and
 // returns a non-nil err if the random number generator fails or the clock
 // rollback discussed above is detected.
-func (g *Generator) GenerateCoreMonotonic(timestamp uint64) (id Id, err error) {
+func (g *Generator) GenerateCoreNoRewind(timestamp uint64) (id Id, err error) {
 	const rollbackAllowance = 10_000 // 10 seconds
 
 	if timestamp == 0 || timestamp > maxTimestamp {
@@ -193,7 +192,7 @@ RngError:
 	return Id{}, err
 }
 
-// Deprecated: use GenerateMonotonic() to guarantee monotonicity.
+// Deprecated: use GenerateNoRewind() to guarantee monotonicity.
 //
 // Returns a GeneratorStatus code that indicates the internal state involved in
 // the last generation of ID.
@@ -205,12 +204,12 @@ func (g *Generator) LastStatus() GeneratorStatus {
 	return g.lastStatus
 }
 
-// Error value returned by GenerateMonotonic() and GenerateCoreMonotonic() when
+// Error value returned by GenerateNoRewind() and GenerateCoreNoRewind() when
 // the relevant timestamp is significantly smaller than the one embedded in the
 // immediately preceding ID generated by the generator.
 var ErrClockRollback = errors.New("scru128: detected unbearable clock rollback")
 
-// Status code returned by LastStatus() method.
+// Deprecated. Status code returned by LastStatus() method.
 type GeneratorStatus string
 
 const (

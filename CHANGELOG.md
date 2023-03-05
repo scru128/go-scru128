@@ -4,7 +4,7 @@
 
 ### Added
 
-- `GenerateMonotonic()` and `GenerateCoreMonotonic()` to `Generator`
+- `GenerateNoRewind()` and `GenerateCoreNoRewind()` to `Generator`
 
 ### Deprecated
 
