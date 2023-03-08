@@ -14,6 +14,25 @@ import (
 //
 // This structure must be instantiated by one of the dedicated constructors:
 // NewGenerator() or NewGeneratorWithRng(rng io.Reader).
+//
+// # Generator functions
+//
+// The generator offers four different methods to generate a SCRU128 ID:
+//
+//	| Flavor               | Timestamp | Thread- | On big clock rewind      |
+//	| -------------------- | --------- | ------- | ------------------------ |
+//	| Generate             | Now       | Safe    | Rewinds state            |
+//	| GenerateNoRewind     | Now       | Safe    | Returns ErrClockRollback |
+//	| GenerateCore         | Argument  | Unsafe  | Rewinds state            |
+//	| GenerateCoreNoRewind | Argument  | Unsafe  | Returns ErrClockRollback |
+//
+// Each method returns monotonically increasing IDs unless a timestamp provided
+// is significantly (by ten seconds or more) smaller than the one embedded in
+// the immediately preceding ID. If such a significant clock rollback is
+// detected, the standard Generate() rewinds the generator state and returns a
+// new ID based on the current timestamp, whereas NoRewind variants keep the
+// state untouched and return the [ErrClockRollback] error value. Core functions
+// offer low-level thread-unsafe primitives.
 type Generator struct {
 	timestamp uint64
 	counterHi uint32
@@ -56,14 +75,10 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 
 // Generates a new SCRU128 ID object from the current timestamp.
 //
-// This method returns monotonically increasing IDs unless the up-to-date
-// timestamp is significantly (by ten seconds or more) smaller than the one
-// embedded in the immediately preceding ID. If such a significant clock
-// rollback is detected, this method rewinds the generator state and returns a
-// new ID based on the up-to-date timestamp.
+// See the [Generator] type documentation for the description.
 //
-// This method is thread-safe; multiple threads can call it concurrently. The
-// method returns a non-nil err only when the random number generator fails.
+// This method returns a non-nil err only when the random number generator
+// fails.
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
@@ -74,15 +89,10 @@ func (g *Generator) Generate() (id Id, err error) {
 // the monotonic order of generated IDs despite a significant timestamp
 // rollback.
 //
-// This method returns monotonically increasing IDs unless the up-to-date
-// timestamp is significantly (by ten seconds or more) smaller than the one
-// embedded in the immediately preceding ID. If such a significant clock
-// rollback is detected, this method returns ErrClockRollback as err and keeps
-// the generator state untouched.
+// See the [Generator] type documentation for the description.
 //
-// This method is thread-safe; multiple threads can call it concurrently. The
-// method returns a non-nil err if the random number generator fails or the
-// clock rollback discussed above is detected..
+// This method returns a non-nil err if the random number generator fails or the
+// significant clock rollback is detected.
 func (g *Generator) GenerateNoRewind() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
@@ -91,11 +101,7 @@ func (g *Generator) GenerateNoRewind() (id Id, err error) {
 
 // Generates a new SCRU128 ID object from the timestamp passed.
 //
-// This method returns monotonically increasing IDs unless a given timestamp is
-// significantly (by ten seconds or more) smaller than the one embedded in the
-// immediately preceding ID. If such a significant clock rollback is detected,
-// this method rewinds the generator state and returns a new ID based on the
-// given argument.
+// See the [Generator] type documentation for the description.
 //
 // Unlike Generate(), this method is NOT thread-safe. The generator object
 // should be protected from concurrent accesses using a mutex or other
@@ -118,19 +124,15 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 // Generates a new SCRU128 ID object from the timestamp passed, guaranteeing the
 // monotonic order of generated IDs despite a significant timestamp rollback.
 //
-// This method returns monotonically increasing IDs unless a given timestamp is
-// significantly (by ten seconds or more) smaller than the one embedded in the
-// immediately preceding ID. If such a significant clock rollback is detected,
-// this method returns ErrClockRollback as err and keeps the generator state
-// untouched.
+// See the [Generator] type documentation for the description.
 //
 // Unlike GenerateNoRewind(), this method is NOT thread-safe. The generator
 // object should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
 // This method panics if the argument is not a 48-bit positive integer and
-// returns a non-nil err if the random number generator fails or the clock
-// rollback discussed above is detected.
+// returns a non-nil err if the random number generator fails or the significant
+// clock rollback is detected.
 func (g *Generator) GenerateCoreNoRewind(timestamp uint64) (id Id, err error) {
 	const rollbackAllowance = 10_000 // 10 seconds
 
