@@ -25,13 +25,14 @@ const maxCounterHi uint32 = 0xff_ffff
 // Maximum value of 24-bit counter_lo field.
 const maxCounterLo uint32 = 0xff_ffff
 
-var defaultGenerator = NewGenerator()
+var globalGenerator = NewGenerator()
 
-// Generates a new SCRU128 ID object, or panics if crypto/rand fails.
+// Generates a new SCRU128 ID object using the global generator, or panics if
+// crypto/rand fails.
 //
 // This function is thread-safe; multiple threads can call it concurrently.
 func New() Id {
-	id, err := defaultGenerator.Generate()
+	id, err := globalGenerator.Generate()
 	if err != nil {
 		panic(err)
 	}
@@ -39,7 +40,7 @@ func New() Id {
 }
 
 // Generates a new SCRU128 ID encoded in the 26-digit canonical string
-// representation, or panics if crypto/rand fails.
+// representation using the global generator, or panics if crypto/rand fails.
 //
 // This function is thread-safe. Use this to quickly get a new SCRU128 ID as a
 // string.
