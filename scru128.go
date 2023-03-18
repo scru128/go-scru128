@@ -16,13 +16,13 @@
 // See SCRU128 Specification for details: https://github.com/scru128/spec
 package scru128
 
-// Maximum value of 48-bit timestamp field.
+// The maximum value of 48-bit timestamp field.
 const maxTimestamp uint64 = 0xffff_ffff_ffff
 
-// Maximum value of 24-bit counter_hi field.
+// The maximum value of 24-bit counter_hi field.
 const maxCounterHi uint32 = 0xff_ffff
 
-// Maximum value of 24-bit counter_lo field.
+// The maximum value of 24-bit counter_lo field.
 const maxCounterLo uint32 = 0xff_ffff
 
 var globalGenerator = NewGenerator()
