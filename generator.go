@@ -27,12 +27,12 @@ import (
 //	| GenerateCoreNoRewind | Argument  | Unsafe  | Returns ErrClockRollback |
 //
 // Each method returns monotonically increasing IDs unless a timestamp provided
-// is significantly (by ten seconds or more) smaller than the one embedded in
-// the immediately preceding ID. If such a significant clock rollback is
-// detected, the standard Generate() rewinds the generator state and returns a
-// new ID based on the current timestamp, whereas NoRewind variants keep the
-// state untouched and return the [ErrClockRollback] error value. Core functions
-// offer low-level thread-unsafe primitives.
+// is significantly (by ten seconds or more by default) smaller than the one
+// embedded in the immediately preceding ID. If such a significant clock
+// rollback is detected, the standard Generate() rewinds the generator state and
+// returns a new ID based on the current timestamp, whereas NoRewind variants
+// keep the state untouched and return the [ErrClockRollback] error value. Core
+// functions offer low-level thread-unsafe primitives.
 type Generator struct {
 	timestamp uint64
 	counterHi uint32
@@ -96,7 +96,10 @@ func (g *Generator) Generate() (id Id, err error) {
 func (g *Generator) GenerateNoRewind() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	return g.GenerateCoreNoRewind(uint64(time.Now().UnixMilli()))
+	return g.GenerateCoreNoRewind(
+		uint64(time.Now().UnixMilli()),
+		defaultRollbackAllowance,
+	)
 }
 
 // Generates a new SCRU128 ID object from the timestamp passed.
@@ -107,15 +110,15 @@ func (g *Generator) GenerateNoRewind() (id Id, err error) {
 // object should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
-// This method panics if the argument is not a 48-bit positive integer and
+// This method panics if `timestamp` is not a 48-bit positive integer and
 // returns a non-nil err if the random number generator fails.
 func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
-	id, err = g.GenerateCoreNoRewind(timestamp)
+	id, err = g.GenerateCoreNoRewind(timestamp, defaultRollbackAllowance)
 	if err == ErrClockRollback {
 		// reset state and resume
 		g.timestamp = 0
 		g.tsCounterHi = 0
-		id, err = g.GenerateCoreNoRewind(timestamp)
+		id, err = g.GenerateCoreNoRewind(timestamp, defaultRollbackAllowance)
 		g.lastStatus = GeneratorStatusClockRollback
 	}
 	return
@@ -126,18 +129,24 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 //
 // See the [Generator] type documentation for the description.
 //
+// The `rollbackAllowance` parameter specifies the amount of timestamp rollback
+// that is considered significant. A suggested value is `10_000` (milliseconds).
+//
 // Unlike [Generator.GenerateNoRewind], this method is NOT thread-safe. The
 // generator object should be protected from concurrent accesses using a mutex
 // or other synchronization mechanism to avoid race conditions.
 //
-// This method panics if the argument is not a 48-bit positive integer and
+// This method panics if `timestamp` is not a 48-bit positive integer and
 // returns a non-nil err if the random number generator fails or the significant
 // clock rollback is detected.
-func (g *Generator) GenerateCoreNoRewind(timestamp uint64) (id Id, err error) {
-	const rollbackAllowance = 10_000 // 10 seconds
-
+func (g *Generator) GenerateCoreNoRewind(
+	timestamp uint64,
+	rollbackAllowance uint64,
+) (id Id, err error) {
 	if timestamp == 0 || timestamp > maxTimestamp {
 		panic("`timestamp` must be a 48-bit positive integer")
+	} else if rollbackAllowance > maxTimestamp {
+		panic("`rollbackAllowance` out of reasonable range")
 	}
 
 	var n uint32
@@ -205,6 +214,9 @@ RngError:
 func (g *Generator) LastStatus() GeneratorStatus {
 	return g.lastStatus
 }
+
+// The default timestamp rollback allowance.
+const defaultRollbackAllowance = 10_000 // 10 seconds
 
 // The error value returned by [Generator.GenerateNoRewind] and
 // [Generator.GenerateCoreNoRewind] when the relevant timestamp is significantly

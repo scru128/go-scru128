@@ -93,7 +93,7 @@ func TestDecreasingOrConstantTimestampNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	prev, err := g.GenerateCoreNoRewind(ts)
+	prev, err := g.GenerateCoreNoRewind(ts, 10_000)
 	if err == ErrClockRollback {
 		t.Fail()
 	}
@@ -107,9 +107,9 @@ func TestDecreasingOrConstantTimestampNoRewind(t *testing.T) {
 	for i := uint64(0); i < 100_000; i++ {
 		var curr Id
 		if i < 9_998 {
-			curr, err = g.GenerateCoreNoRewind(ts - i)
+			curr, err = g.GenerateCoreNoRewind(ts-i, 10_000)
 		} else {
-			curr, err = g.GenerateCoreNoRewind(ts - 9_998)
+			curr, err = g.GenerateCoreNoRewind(ts-9_998, 10_000)
 		}
 		if err == ErrClockRollback {
 			t.Fail()
@@ -137,7 +137,7 @@ func TestTimestampRollbackNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	prev, err := g.GenerateCoreNoRewind(ts)
+	prev, err := g.GenerateCoreNoRewind(ts, 10_000)
 	if err == ErrClockRollback {
 		t.Fail()
 	}
@@ -148,7 +148,7 @@ func TestTimestampRollbackNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = g.GenerateCoreNoRewind(ts - 10_000)
+	_, err = g.GenerateCoreNoRewind(ts-10_000, 10_000)
 	if err != ErrClockRollback {
 		t.Fail()
 	}
@@ -156,7 +156,7 @@ func TestTimestampRollbackNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = g.GenerateCoreNoRewind(ts - 10_001)
+	_, err = g.GenerateCoreNoRewind(ts-10_001, 10_000)
 	if err != ErrClockRollback {
 		t.Fail()
 	}
