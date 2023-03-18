@@ -6,10 +6,6 @@
 
 - `GenerateNoRewind()` and `GenerateCoreNoRewind()` to `Generator`
 
-### Deprecated
-
-- `Generator#LastStatus()` and `GeneratorStatus`
-
 ## v2.2.0 - 2023-02-12
 
 ### Changed

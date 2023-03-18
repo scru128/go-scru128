@@ -203,8 +203,6 @@ RngError:
 	return Id{}, err
 }
 
-// Deprecated: use GenerateNoRewind() to guarantee monotonicity.
-//
 // Returns a GeneratorStatus code that indicates the internal state involved in
 // the last generation of ID.
 //
@@ -224,7 +222,7 @@ const defaultRollbackAllowance = 10_000 // 10 seconds
 // the generator.
 var ErrClockRollback = errors.New("scru128: detected unbearable clock rollback")
 
-// Deprecated. The status code returned by LastStatus() method.
+// The status code returned by LastStatus() method.
 type GeneratorStatus string
 
 const (
