@@ -1,10 +1,10 @@
 # Changelog
 
-## v2.3.0 - unreleased
+## v2.2.1 - unreleased
 
 ### Added
 
-- `GenerateNoRewind()` and `GenerateCoreNoRewind()` to `Generator`
+- `GenerateNoRewind()` and `GenerateCoreNoRewind()` to `Generator` (experimental)
 
 ## v2.2.0 - 2023-02-12
 

@@ -29,10 +29,10 @@ import (
 // Each method returns monotonically increasing IDs unless a timestamp provided
 // is significantly (by ten seconds or more by default) smaller than the one
 // embedded in the immediately preceding ID. If such a significant clock
-// rollback is detected, the standard Generate() rewinds the generator state and
-// returns a new ID based on the current timestamp, whereas NoRewind variants
-// keep the state untouched and return the [ErrClockRollback] error value. Core
-// functions offer low-level thread-unsafe primitives.
+// rollback is detected, the Generate() method rewinds the generator state and
+// returns a new ID based on the current timestamp, whereas the experimental
+// NoRewind variants keep the state untouched and return the [ErrClockRollback]
+// error value. Core functions offer low-level thread-unsafe primitives.
 type Generator struct {
 	timestamp uint64
 	counterHi uint32
@@ -85,9 +85,9 @@ func (g *Generator) Generate() (id Id, err error) {
 	return g.GenerateCore(uint64(time.Now().UnixMilli()))
 }
 
-// Generates a new SCRU128 ID object from the current timestamp, guaranteeing
-// the monotonic order of generated IDs despite a significant timestamp
-// rollback.
+// Experimental. Generates a new SCRU128 ID object from the current timestamp,
+// guaranteeing the monotonic order of generated IDs despite a significant
+// timestamp rollback.
 //
 // See the [Generator] type documentation for the description.
 //
@@ -124,8 +124,9 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 	return
 }
 
-// Generates a new SCRU128 ID object from the timestamp passed, guaranteeing the
-// monotonic order of generated IDs despite a significant timestamp rollback.
+// Experimental. Generates a new SCRU128 ID object from the timestamp passed,
+// guaranteeing the monotonic order of generated IDs despite a significant
+// timestamp rollback.
 //
 // See the [Generator] type documentation for the description.
 //
