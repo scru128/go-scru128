@@ -3,6 +3,7 @@ package scru128
 import (
 	"bufio"
 	"crypto/rand"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -12,19 +13,38 @@ import (
 // and other internal states.
 //
 // This structure must be instantiated by one of the dedicated constructors:
-// NewGenerator() or NewGeneratorWithRng(rng io.Reader).
+// [NewGenerator] or [NewGeneratorWithRng].
+//
+// # Generator functions
+//
+// The generator offers four different methods to generate a SCRU128 ID:
+//
+//	| Flavor               | Timestamp | Thread- | On big clock rewind      |
+//	| -------------------- | --------- | ------- | ------------------------ |
+//	| Generate             | Now       | Safe    | Rewinds state            |
+//	| GenerateNoRewind     | Now       | Safe    | Returns ErrClockRollback |
+//	| GenerateCore         | Argument  | Unsafe  | Rewinds state            |
+//	| GenerateCoreNoRewind | Argument  | Unsafe  | Returns ErrClockRollback |
+//
+// Each method returns monotonically increasing IDs unless a timestamp provided
+// is significantly (by ten seconds or more by default) smaller than the one
+// embedded in the immediately preceding ID. If such a significant clock
+// rollback is detected, the Generate() method rewinds the generator state and
+// returns a new ID based on the current timestamp, whereas the experimental
+// NoRewind variants keep the state untouched and return the [ErrClockRollback]
+// error value. Core functions offer low-level thread-unsafe primitives.
 type Generator struct {
 	timestamp uint64
 	counterHi uint32
 	counterLo uint32
 
-	// Timestamp at the last renewal of counter_hi field.
+	// The timestamp at the last renewal of counter_hi field.
 	tsCounterHi uint64
 
-	// Status code reported at the last generation.
+	// The status code reported at the last generation.
 	lastStatus GeneratorStatus
 
-	// Random number generator used by the generator.
+	// The random number generator used by the generator.
 	rng io.Reader
 
 	lock sync.Mutex
@@ -36,7 +56,7 @@ type Generator struct {
 // platforms. In such a case, wrapping crypto/rand with bufio.Reader may result
 // in a drastic improvement in the throughput of generator. If the throughput is
 // an important issue, check out the following benchmark tests and pass
-// bufio.NewReader(rand.Reader) to NewGeneratorWithRng():
+// bufio.NewReader(rand.Reader) to [NewGeneratorWithRng]:
 //
 //	go test -bench Generator
 func NewGenerator() *Generator {
@@ -53,39 +73,94 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 	return &Generator{rng: rng}
 }
 
-// Generates a new SCRU128 ID object.
+// Generates a new SCRU128 ID object from the current timestamp.
 //
-// This method is thread-safe; multiple threads can call it concurrently. The
-// method returns non-nil err only when the random number generator fails.
+// See the [Generator] type documentation for the description.
+//
+// This method returns a non-nil err only when the random number generator
+// fails.
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	return g.GenerateCore(uint64(time.Now().UnixMilli()))
 }
 
-// Generates a new SCRU128 ID object with the timestamp passed.
+// Experimental. Generates a new SCRU128 ID object from the current timestamp,
+// guaranteeing the monotonic order of generated IDs despite a significant
+// timestamp rollback.
 //
-// Unlike Generate(), this method is NOT thread-safe. The generator object
-// should be protected from concurrent accesses using a mutex or other
+// See the [Generator] type documentation for the description.
+//
+// This method returns a non-nil err if the random number generator fails or the
+// significant clock rollback is detected.
+func (g *Generator) GenerateNoRewind() (id Id, err error) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	return g.GenerateCoreNoRewind(
+		uint64(time.Now().UnixMilli()),
+		defaultRollbackAllowance,
+	)
+}
+
+// Generates a new SCRU128 ID object from the timestamp passed.
+//
+// See the [Generator] type documentation for the description.
+//
+// Unlike [Generator.Generate], this method is NOT thread-safe. The generator
+// object should be protected from concurrent accesses using a mutex or other
 // synchronization mechanism to avoid race conditions.
 //
-// This method panics if the argument is not a 48-bit positive integer and
-// returns non-nil err if the random number generator fails.
+// This method panics if `timestamp` is not a 48-bit positive integer and
+// returns a non-nil err if the random number generator fails.
 func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
+	id, err = g.GenerateCoreNoRewind(timestamp, defaultRollbackAllowance)
+	if err == ErrClockRollback {
+		// reset state and resume
+		g.timestamp = 0
+		g.tsCounterHi = 0
+		id, err = g.GenerateCoreNoRewind(timestamp, defaultRollbackAllowance)
+		g.lastStatus = GeneratorStatusClockRollback
+	}
+	return
+}
+
+// Experimental. Generates a new SCRU128 ID object from the timestamp passed,
+// guaranteeing the monotonic order of generated IDs despite a significant
+// timestamp rollback.
+//
+// See the [Generator] type documentation for the description.
+//
+// The `rollbackAllowance` parameter specifies the amount of timestamp rollback
+// that is considered significant. A suggested value is `10_000` (milliseconds).
+//
+// Unlike [Generator.GenerateNoRewind], this method is NOT thread-safe. The
+// generator object should be protected from concurrent accesses using a mutex
+// or other synchronization mechanism to avoid race conditions.
+//
+// This method panics if `timestamp` is not a 48-bit positive integer and
+// returns a non-nil err if the random number generator fails or the significant
+// clock rollback is detected.
+func (g *Generator) GenerateCoreNoRewind(
+	timestamp uint64,
+	rollbackAllowance uint64,
+) (id Id, err error) {
 	if timestamp == 0 || timestamp > maxTimestamp {
 		panic("`timestamp` must be a 48-bit positive integer")
+	} else if rollbackAllowance > maxTimestamp {
+		panic("`rollbackAllowance` out of reasonable range")
 	}
 
 	var n uint32
-	g.lastStatus = GeneratorStatusNewTimestamp
 	if timestamp > g.timestamp {
 		g.timestamp = timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto Error
+			goto RngError
 		}
 		g.counterLo = n & maxCounterLo
-	} else if timestamp+10_000 > g.timestamp {
+		g.lastStatus = GeneratorStatusNewTimestamp
+	} else if timestamp+rollbackAllowance > g.timestamp {
+		// go on with previous timestamp if new one is not much smaller
 		g.counterLo++
 		g.lastStatus = GeneratorStatusCounterLoInc
 		if g.counterLo > maxCounterLo {
@@ -98,40 +173,33 @@ func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
 				g.timestamp++
 				n, err = g.randomUint32()
 				if err != nil {
-					goto Error
+					goto RngError
 				}
 				g.counterLo = n & maxCounterLo
 				g.lastStatus = GeneratorStatusTimestampInc
 			}
 		}
 	} else {
-		// reset state if clock moves back by ten seconds or more
-		g.tsCounterHi = 0
-		g.timestamp = timestamp
-		n, err = g.randomUint32()
-		if err != nil {
-			goto Error
-		}
-		g.counterLo = n & maxCounterLo
-		g.lastStatus = GeneratorStatusClockRollback
+		// abort if clock moves back to unbearable extent
+		return Id{}, ErrClockRollback
 	}
 
 	if g.timestamp-g.tsCounterHi >= 1_000 || g.tsCounterHi == 0 {
 		g.tsCounterHi = g.timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto Error
+			goto RngError
 		}
 		g.counterHi = n & maxCounterHi
 	}
 
 	n, err = g.randomUint32()
 	if err != nil {
-		goto Error
+		goto RngError
 	}
 	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
 
-Error:
+RngError:
 	g.lastStatus = GeneratorStatusError
 	return Id{}, err
 }
@@ -146,7 +214,16 @@ func (g *Generator) LastStatus() GeneratorStatus {
 	return g.lastStatus
 }
 
-// Status code returned by LastStatus() method.
+// The default timestamp rollback allowance.
+const defaultRollbackAllowance = 10_000 // 10 seconds
+
+// The error value returned by [Generator.GenerateNoRewind] and
+// [Generator.GenerateCoreNoRewind] when the relevant timestamp is significantly
+// smaller than the one embedded in the immediately preceding ID generated by
+// the generator.
+var ErrClockRollback = errors.New("scru128: detected unbearable clock rollback")
+
+// The status code returned by LastStatus() method.
 type GeneratorStatus string
 
 const (

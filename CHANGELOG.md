@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.2.1 - 2023-03-19
+
+### Added
+
+- `GenerateNoRewind()` and `GenerateCoreNoRewind()` to `Generator` (experimental)
+
+### Maintenance
+
+- Improved documentation about generator method flavors
+
 ## v2.2.0 - 2023-02-12
 
 ### Changed
