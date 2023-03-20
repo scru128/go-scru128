@@ -6,6 +6,11 @@
 
 - `GenerateOrAbort()` and `GenerateOrAbortCore()` to `Generator` (formerly named
   as `GenerateNoRewind()` and `GenerateCoreNoRewind()`)
+- `Generator#GenerateOrResetCore()`
+
+### Deprecated
+
+- `Generator#GenerateCore()`
 
 ## v2.2.1 - 2023-03-19
 

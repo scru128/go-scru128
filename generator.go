@@ -23,7 +23,7 @@ import (
 //	| ------------------- | --------- | ------- | ------------------------ |
 //	| Generate            | Now       | Safe    | Resets generator         |
 //	| GenerateOrAbort     | Now       | Safe    | Returns ErrClockRollback |
-//	| GenerateCore        | Argument  | Unsafe  | Resets generator         |
+//	| GenerateOrResetCore | Argument  | Unsafe  | Resets generator         |
 //	| GenerateOrAbortCore | Argument  | Unsafe  | Returns ErrClockRollback |
 //
 // All of these methods return monotonically increasing IDs unless a `timestamp`
@@ -73,7 +73,8 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 	return &Generator{rng: rng}
 }
 
-// Generates a new SCRU128 ID object from the current timestamp.
+// Generates a new SCRU128 ID object from the current `timestamp`, or resets the
+// generator upon significant timestamp rollback.
 //
 // See the [Generator] type documentation for the description.
 //
@@ -82,7 +83,10 @@ func NewGeneratorWithRng(rng io.Reader) *Generator {
 func (g *Generator) Generate() (id Id, err error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	return g.GenerateCore(uint64(time.Now().UnixMilli()))
+	return g.GenerateOrResetCore(
+		uint64(time.Now().UnixMilli()),
+		defaultRollbackAllowance,
+	)
 }
 
 // Generates a new SCRU128 ID object from the current `timestamp`, or returns
@@ -101,9 +105,13 @@ func (g *Generator) GenerateOrAbort() (id Id, err error) {
 	)
 }
 
-// Generates a new SCRU128 ID object from the timestamp passed.
+// Generates a new SCRU128 ID object from the `timestamp` passed, or resets the
+// generator upon significant timestamp rollback.
 //
 // See the [Generator] type documentation for the description.
+//
+// The `rollbackAllowance` parameter specifies the amount of timestamp rollback
+// that is considered significant. A suggested value is `10_000` (milliseconds).
 //
 // Unlike [Generator.Generate], this method is NOT thread-safe. The generator
 // object should be protected from concurrent accesses using a mutex or other
@@ -111,16 +119,26 @@ func (g *Generator) GenerateOrAbort() (id Id, err error) {
 //
 // This method panics if `timestamp` is not a 48-bit positive integer and
 // returns a non-nil err if the random number generator fails.
-func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
-	id, err = g.GenerateOrAbortCore(timestamp, defaultRollbackAllowance)
+func (g *Generator) GenerateOrResetCore(
+	timestamp uint64,
+	rollbackAllowance uint64,
+) (id Id, err error) {
+	id, err = g.GenerateOrAbortCore(timestamp, rollbackAllowance)
 	if err == ErrClockRollback {
 		// reset state and resume
 		g.timestamp = 0
 		g.tsCounterHi = 0
-		id, err = g.GenerateOrAbortCore(timestamp, defaultRollbackAllowance)
+		id, err = g.GenerateOrAbortCore(timestamp, rollbackAllowance)
 		g.lastStatus = GeneratorStatusClockRollback
 	}
 	return
+}
+
+// Deprecated: Use `GenerateOrResetCore(timestamp, 10_000)` instead.
+//
+// A deprecated synonym for `GenerateOrResetCore(timestamp, 10_000)`.
+func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
+	return g.GenerateOrResetCore(timestamp, defaultRollbackAllowance)
 }
 
 // Generates a new SCRU128 ID object from the `timestamp` passed, or returns the

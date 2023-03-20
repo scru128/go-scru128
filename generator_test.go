@@ -9,14 +9,14 @@ import (
 )
 
 // Generates increasing IDs even with decreasing or constant timestamp
-func TestDecreasingOrConstantTimestamp(t *testing.T) {
+func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
 	if g.LastStatus() != GeneratorStatusNotExecuted {
 		t.Fail()
 	}
 
-	prev, _ := g.GenerateCore(ts)
+	prev, _ := g.GenerateOrResetCore(ts, 10_000)
 	if g.LastStatus() != GeneratorStatusNewTimestamp {
 		t.Fail()
 	}
@@ -27,9 +27,9 @@ func TestDecreasingOrConstantTimestamp(t *testing.T) {
 	for i := uint64(0); i < 100_000; i++ {
 		var curr Id
 		if i < 9_998 {
-			curr, _ = g.GenerateCore(ts - i)
+			curr, _ = g.GenerateOrResetCore(ts-i, 10_000)
 		} else {
-			curr, _ = g.GenerateCore(ts - 9_998)
+			curr, _ = g.GenerateOrResetCore(ts-9_998, 10_000)
 		}
 		if g.LastStatus() != GeneratorStatusCounterLoInc &&
 			g.LastStatus() != GeneratorStatusCounterHiInc &&
@@ -47,14 +47,14 @@ func TestDecreasingOrConstantTimestamp(t *testing.T) {
 }
 
 // Breaks increasing order of IDs if timestamp moves backward a lot
-func TestTimestampRollback(t *testing.T) {
+func TestTimestampRollbackReset(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
 	if g.LastStatus() != GeneratorStatusNotExecuted {
 		t.Fail()
 	}
 
-	prev, _ := g.GenerateCore(ts)
+	prev, _ := g.GenerateOrResetCore(ts, 10_000)
 	if g.LastStatus() != GeneratorStatusNewTimestamp {
 		t.Fail()
 	}
@@ -62,7 +62,7 @@ func TestTimestampRollback(t *testing.T) {
 		t.Fail()
 	}
 
-	curr, _ := g.GenerateCore(ts - 10_000)
+	curr, _ := g.GenerateOrResetCore(ts-10_000, 10_000)
 	if g.LastStatus() != GeneratorStatusClockRollback {
 		t.Fail()
 	}
@@ -74,7 +74,7 @@ func TestTimestampRollback(t *testing.T) {
 	}
 
 	prev = curr
-	curr, _ = g.GenerateCore(ts - 10_001)
+	curr, _ = g.GenerateOrResetCore(ts-10_001, 10_000)
 	if g.LastStatus() != GeneratorStatusCounterLoInc &&
 		g.LastStatus() != GeneratorStatusCounterHiInc &&
 		g.LastStatus() != GeneratorStatusTimestampInc {
