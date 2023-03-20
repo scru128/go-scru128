@@ -11,6 +11,7 @@
 ### Deprecated
 
 - `Generator#GenerateCore()`
+- `Generator#LastStatus()` and `GeneratorStatus`
 
 ## v2.2.1 - 2023-03-19
 
