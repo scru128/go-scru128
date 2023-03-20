@@ -86,14 +86,14 @@ func TestTimestampRollback(t *testing.T) {
 }
 
 // Generates increasing IDs even with decreasing or constant timestamp
-func TestDecreasingOrConstantTimestampNoRewind(t *testing.T) {
+func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
 	if g.LastStatus() != GeneratorStatusNotExecuted {
 		t.Fail()
 	}
 
-	prev, err := g.GenerateCoreNoRewind(ts, 10_000)
+	prev, err := g.GenerateOrAbortCore(ts, 10_000)
 	if err == ErrClockRollback {
 		t.Fail()
 	}
@@ -107,9 +107,9 @@ func TestDecreasingOrConstantTimestampNoRewind(t *testing.T) {
 	for i := uint64(0); i < 100_000; i++ {
 		var curr Id
 		if i < 9_998 {
-			curr, err = g.GenerateCoreNoRewind(ts-i, 10_000)
+			curr, err = g.GenerateOrAbortCore(ts-i, 10_000)
 		} else {
-			curr, err = g.GenerateCoreNoRewind(ts-9_998, 10_000)
+			curr, err = g.GenerateOrAbortCore(ts-9_998, 10_000)
 		}
 		if err == ErrClockRollback {
 			t.Fail()
@@ -130,14 +130,14 @@ func TestDecreasingOrConstantTimestampNoRewind(t *testing.T) {
 }
 
 // Returns ErrClockRollback if timestamp moves backward a lot
-func TestTimestampRollbackNoRewind(t *testing.T) {
+func TestTimestampRollbackAbort(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
 	if g.LastStatus() != GeneratorStatusNotExecuted {
 		t.Fail()
 	}
 
-	prev, err := g.GenerateCoreNoRewind(ts, 10_000)
+	prev, err := g.GenerateOrAbortCore(ts, 10_000)
 	if err == ErrClockRollback {
 		t.Fail()
 	}
@@ -148,7 +148,7 @@ func TestTimestampRollbackNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = g.GenerateCoreNoRewind(ts-10_000, 10_000)
+	_, err = g.GenerateOrAbortCore(ts-10_000, 10_000)
 	if err != ErrClockRollback {
 		t.Fail()
 	}
@@ -156,7 +156,7 @@ func TestTimestampRollbackNoRewind(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = g.GenerateCoreNoRewind(ts-10_001, 10_000)
+	_, err = g.GenerateOrAbortCore(ts-10_001, 10_000)
 	if err != ErrClockRollback {
 		t.Fail()
 	}
