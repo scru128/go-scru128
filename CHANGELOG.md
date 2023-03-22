@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.3.0 - 2023-03-23
+
+### Added
+
+- `GenerateOrAbort()` and `GenerateOrAbortCore()` to `Generator` (formerly named
+  as `GenerateNoRewind()` and `GenerateCoreNoRewind()`)
+- `Generator#GenerateOrResetCore()`
+
+### Deprecated
+
+- `Generator#GenerateCore()`
+- `Generator#LastStatus()` and `GeneratorStatus`
+
 ## v2.2.1 - 2023-03-19
 
 ### Added
