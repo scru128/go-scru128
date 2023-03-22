@@ -197,7 +197,7 @@ func (g *Generator) GenerateOrAbortCore(
 			}
 		}
 	} else {
-		// abort if clock moves back to unbearable extent
+		// abort if clock went backwards to unbearable extent
 		return Id{}, ErrClockRollback
 	}
 

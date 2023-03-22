@@ -46,7 +46,7 @@ func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 	}
 }
 
-// Breaks increasing order of IDs if timestamp moves backward a lot
+// Breaks increasing order of IDs if timestamp went backwards by ten seconds
 func TestTimestampRollbackReset(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
@@ -129,7 +129,7 @@ func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 	}
 }
 
-// Returns ErrClockRollback if timestamp moves backward a lot
+// Returns error if timestamp went backwards by ten seconds
 func TestTimestampRollbackAbort(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
