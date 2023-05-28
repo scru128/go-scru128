@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.3.2 - unreleased
+
+### Changed
+
+- `Generator` to wrap errors arising from random number generator
+
 ## v2.3.1 - 2023-04-07
 
 ### Maintenance

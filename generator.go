@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -277,6 +278,9 @@ const (
 func (g *Generator) randomUint32() (uint32, error) {
 	b := make([]byte, 4)
 	_, err := g.rng.Read(b)
+	if err != nil {
+		err = fmt.Errorf("random number generator error: %w", err)
+	}
 	_ = b[3] // bounds check hint to compiler
 	return uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24, err
 }
