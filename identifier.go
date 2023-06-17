@@ -2,7 +2,7 @@ package scru128
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 )
 
 // Represents a SCRU128 ID and provides converters and comparison operators.
@@ -98,14 +98,17 @@ func (bs Id) MarshalBinary() (data []byte, err error) {
 // See encoding.BinaryUnmarshaler
 func (bs *Id) UnmarshalBinary(data []byte) error {
 	if bs == nil {
-		return errors.New("nil receiver")
+		return fmt.Errorf("scru128.Id: method call on nil receiver")
 	}
 	if len(data) == 16 {
 		copy(bs[:], data)
 		return nil
+	} else if len(data) == 25 {
+		return bs.UnmarshalText(data)
+	} else {
+		return fmt.Errorf(
+			"scru128.Id: invalid length of byte array: %d bytes", len(data))
 	}
-	return bs.UnmarshalText(data)
-
 }
 
 // Digit characters used in the Base36 notation.
@@ -169,17 +172,22 @@ var decodeMap = [256]byte{
 // See encoding.TextUnmarshaler
 func (bs *Id) UnmarshalText(text []byte) error {
 	if bs == nil {
-		return errors.New("nil receiver")
+		return fmt.Errorf("scru128.Id: method call on nil receiver")
 	}
 	if len(text) != 25 {
-		return errors.New("invalid length")
+		return newParseError(
+			fmt.Errorf("invalid length: %d bytes (expected 25)", len(text)))
 	}
 
 	src := make([]byte, 25)
 	for i, e := range text {
 		src[i] = decodeMap[e]
 		if src[i] == 0xff {
-			return errors.New("invalid digit")
+			if e < 0x80 {
+				return newParseError(fmt.Errorf("invalid digit %q at %d", e, i))
+			} else {
+				return newParseError(fmt.Errorf("found non-ASCII digit at %d", i))
+			}
 		}
 	}
 
@@ -206,7 +214,7 @@ func (bs *Id) UnmarshalText(text []byte) error {
 		j := len(bs) - 1
 		for ; carry > 0 || j > minIndex; j-- {
 			if j < 0 {
-				return errors.New("out of 128-bit value range")
+				return newParseError(fmt.Errorf("out of 128-bit value range"))
 			}
 			carry += uint64(bs[j]) * 3656158440062976 // 36^10
 			bs[j] = byte(carry)
@@ -220,7 +228,7 @@ func (bs *Id) UnmarshalText(text []byte) error {
 // See sql.Scanner
 func (bs *Id) Scan(src any) error {
 	if bs == nil {
-		return errors.New("nil receiver")
+		return fmt.Errorf("scru128.Id: method call on nil receiver")
 	}
 	switch src := src.(type) {
 	case string:
@@ -228,6 +236,11 @@ func (bs *Id) Scan(src any) error {
 	case []byte:
 		return bs.UnmarshalBinary(src)
 	default:
-		return errors.New("unsupported type conversion")
+		return fmt.Errorf("scru128.Id: Scan: unsupported type conversion")
 	}
+}
+
+// Wraps a raw parsing error to construct a unified error message.
+func newParseError(err error) error {
+	return fmt.Errorf("scru128.Id: could not parse string: %w", err)
 }

@@ -4,7 +4,7 @@
 
 ### Changed
 
-- `Generator` to wrap errors arising from random number generator
+- Error values returned by `Generator` and `Id` to improve error messages
 
 ## v2.3.1 - 2023-04-07
 
