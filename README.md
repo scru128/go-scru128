@@ -19,11 +19,11 @@ import "github.com/scru128/go-scru128/v3"
 
 // generate a new identifier object
 x := scru128.New()
-fmt.Println(x)    // e.g. "036Z951MHJIKZIK2GSL81GR7L"
+fmt.Println(x)    // e.g., "036z951mhjikzik2gsl81gr7l"
 fmt.Println(x[:]) // as a 128-bit unsigned integer in big-endian byte array
 
 // generate a textual representation directly
-fmt.Println(scru128.NewString()) // e.g. "036Z951MHZX67T63MQ9XE6Q0J"
+fmt.Println(scru128.NewString()) // e.g., "036z951mhzx67t63mq9xe6q0j"
 ```
 
 See [SCRU128 Specification] for details.

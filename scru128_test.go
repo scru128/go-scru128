@@ -19,7 +19,7 @@ func init() {
 
 // Generates 25-digit canonical string
 func TestFormat(t *testing.T) {
-	re := regexp.MustCompile(`^[0-9A-Z]{25}$`)
+	re := regexp.MustCompile(`^[0-9a-z]{25}$`)
 	for _, e := range samples {
 		if !re.MatchString(e) {
 			t.Fail()

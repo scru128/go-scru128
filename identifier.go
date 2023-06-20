@@ -112,7 +112,7 @@ func (bs *Id) UnmarshalBinary(data []byte) error {
 }
 
 // Digit characters used in the Base36 notation.
-var digits = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var digits = []byte("0123456789abcdefghijklmnopqrstuvwxyz")
 
 // See encoding.TextMarshaler
 func (bs Id) MarshalText() (text []byte, err error) {
