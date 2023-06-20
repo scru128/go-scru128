@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.0.0 - unreleased
+
+### Maintenance
+
+- Upgraded minimum Go version to 1.20
+
 ## v2.3.2 - 2023-06-21
 
 ### Changed

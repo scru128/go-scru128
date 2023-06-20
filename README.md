@@ -15,7 +15,7 @@ decentralized, globally unique time-ordered identifiers. SCRU128 is inspired by
 - 80-bit three-layer randomness for global uniqueness
 
 ```go
-import "github.com/scru128/go-scru128/v2"
+import "github.com/scru128/go-scru128/v3"
 
 // generate a new identifier object
 x := scru128.New()
@@ -39,4 +39,4 @@ Licensed under the Apache License, Version 2.0.
 
 ## See also
 
-- [scru128 package - github.com/scru128/go-scru128/v2 - Go Packages](https://pkg.go.dev/github.com/scru128/go-scru128/v2)
+- [scru128 package - github.com/scru128/go-scru128/v3 - Go Packages](https://pkg.go.dev/github.com/scru128/go-scru128/v3)
