@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.3.2 - 2023-06-21
+
+### Changed
+
+- Error values returned by `Generator` and `Id` to improve error messages
+
 ## v2.3.1 - 2023-04-07
 
 ### Maintenance
