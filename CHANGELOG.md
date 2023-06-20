@@ -2,6 +2,12 @@
 
 ## v3.0.0 - unreleased
 
+### Removed
+
+- Deprecated items:
+  - `Generator#GenerateCore()`
+  - `Generator#LastStatus()` and `GeneratorStatus`
+
 ### Maintenance
 
 - Upgraded minimum Go version to 1.20

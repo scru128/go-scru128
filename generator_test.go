@@ -12,14 +12,8 @@ import (
 func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
-	if g.LastStatus() != GeneratorStatusNotExecuted {
-		t.Fail()
-	}
 
 	prev, _ := g.GenerateOrResetCore(ts, 10_000)
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
-		t.Fail()
-	}
 	if prev.Timestamp() != ts {
 		t.Fail()
 	}
@@ -30,11 +24,6 @@ func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 			curr, _ = g.GenerateOrResetCore(ts-i, 10_000)
 		} else {
 			curr, _ = g.GenerateOrResetCore(ts-9_998, 10_000)
-		}
-		if g.LastStatus() != GeneratorStatusCounterLoInc &&
-			g.LastStatus() != GeneratorStatusCounterHiInc &&
-			g.LastStatus() != GeneratorStatusTimestampInc {
-			t.Fail()
 		}
 		if prev.Cmp(curr) >= 0 {
 			t.Fail()
@@ -50,22 +39,13 @@ func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 func TestTimestampRollbackReset(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
-	if g.LastStatus() != GeneratorStatusNotExecuted {
-		t.Fail()
-	}
 
 	prev, _ := g.GenerateOrResetCore(ts, 10_000)
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
-		t.Fail()
-	}
 	if prev.Timestamp() != ts {
 		t.Fail()
 	}
 
 	curr, _ := g.GenerateOrResetCore(ts-10_000, 10_000)
-	if g.LastStatus() != GeneratorStatusClockRollback {
-		t.Fail()
-	}
 	if prev.Cmp(curr) <= 0 {
 		t.Fail()
 	}
@@ -75,11 +55,6 @@ func TestTimestampRollbackReset(t *testing.T) {
 
 	prev = curr
 	curr, _ = g.GenerateOrResetCore(ts-10_001, 10_000)
-	if g.LastStatus() != GeneratorStatusCounterLoInc &&
-		g.LastStatus() != GeneratorStatusCounterHiInc &&
-		g.LastStatus() != GeneratorStatusTimestampInc {
-		t.Fail()
-	}
 	if prev.Cmp(curr) >= 0 {
 		t.Fail()
 	}
@@ -89,15 +64,9 @@ func TestTimestampRollbackReset(t *testing.T) {
 func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
-	if g.LastStatus() != GeneratorStatusNotExecuted {
-		t.Fail()
-	}
 
 	prev, err := g.GenerateOrAbortCore(ts, 10_000)
 	if err == ErrClockRollback {
-		t.Fail()
-	}
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
 		t.Fail()
 	}
 	if prev.Timestamp() != ts {
@@ -114,11 +83,6 @@ func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 		if err == ErrClockRollback {
 			t.Fail()
 		}
-		if g.LastStatus() != GeneratorStatusCounterLoInc &&
-			g.LastStatus() != GeneratorStatusCounterHiInc &&
-			g.LastStatus() != GeneratorStatusTimestampInc {
-			t.Fail()
-		}
 		if prev.Cmp(curr) >= 0 {
 			t.Fail()
 		}
@@ -133,15 +97,9 @@ func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 func TestTimestampRollbackAbort(t *testing.T) {
 	var ts uint64 = 0x0123_4567_89ab
 	var g *Generator = NewGenerator()
-	if g.LastStatus() != GeneratorStatusNotExecuted {
-		t.Fail()
-	}
 
 	prev, err := g.GenerateOrAbortCore(ts, 10_000)
 	if err == ErrClockRollback {
-		t.Fail()
-	}
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
 		t.Fail()
 	}
 	if prev.Timestamp() != ts {
@@ -152,15 +110,9 @@ func TestTimestampRollbackAbort(t *testing.T) {
 	if err != ErrClockRollback {
 		t.Fail()
 	}
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
-		t.Fail()
-	}
 
 	_, err = g.GenerateOrAbortCore(ts-10_001, 10_000)
 	if err != ErrClockRollback {
-		t.Fail()
-	}
-	if g.LastStatus() != GeneratorStatusNewTimestamp {
 		t.Fail()
 	}
 }
