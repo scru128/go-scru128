@@ -1,3 +1,3 @@
-module github.com/scru128/go-scru128/v2
+module github.com/scru128/go-scru128/v3
 
-go 1.18
+go 1.20

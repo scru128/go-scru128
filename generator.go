@@ -41,9 +41,6 @@ type Generator struct {
 	// The timestamp at the last renewal of counter_hi field.
 	tsCounterHi uint64
 
-	// The status code reported at the last generation.
-	lastStatus GeneratorStatus
-
 	// The random number generator used by the generator.
 	rng io.Reader
 
@@ -129,16 +126,8 @@ func (g *Generator) GenerateOrResetCore(
 		g.timestamp = 0
 		g.tsCounterHi = 0
 		id, err = g.GenerateOrAbortCore(timestamp, rollbackAllowance)
-		g.lastStatus = GeneratorStatusClockRollback
 	}
 	return
-}
-
-// Deprecated: Use `GenerateOrResetCore(timestamp, 10_000)` instead.
-//
-// A deprecated synonym for `GenerateOrResetCore(timestamp, 10_000)`.
-func (g *Generator) GenerateCore(timestamp uint64) (id Id, err error) {
-	return g.GenerateOrResetCore(timestamp, defaultRollbackAllowance)
 }
 
 // Generates a new SCRU128 ID object from the `timestamp` passed, or returns an
@@ -172,28 +161,24 @@ func (g *Generator) GenerateOrAbortCore(
 		g.timestamp = timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto RngError
+			return Id{}, err
 		}
 		g.counterLo = n & maxCounterLo
-		g.lastStatus = GeneratorStatusNewTimestamp
 	} else if timestamp+rollbackAllowance > g.timestamp {
 		// go on with previous timestamp if new one is not much smaller
 		g.counterLo++
-		g.lastStatus = GeneratorStatusCounterLoInc
 		if g.counterLo > maxCounterLo {
 			g.counterLo = 0
 			g.counterHi++
-			g.lastStatus = GeneratorStatusCounterHiInc
 			if g.counterHi > maxCounterHi {
 				g.counterHi = 0
 				// increment timestamp at counter overflow
 				g.timestamp++
 				n, err = g.randomUint32()
 				if err != nil {
-					goto RngError
+					return Id{}, err
 				}
 				g.counterLo = n & maxCounterLo
-				g.lastStatus = GeneratorStatusTimestampInc
 			}
 		}
 	} else {
@@ -205,32 +190,16 @@ func (g *Generator) GenerateOrAbortCore(
 		g.tsCounterHi = g.timestamp
 		n, err = g.randomUint32()
 		if err != nil {
-			goto RngError
+			return Id{}, err
 		}
 		g.counterHi = n & maxCounterHi
 	}
 
 	n, err = g.randomUint32()
 	if err != nil {
-		goto RngError
+		return Id{}, err
 	}
 	return FromFields(g.timestamp, g.counterHi, g.counterLo, n), nil
-
-RngError:
-	g.lastStatus = GeneratorStatusError
-	return Id{}, err
-}
-
-// Deprecated: Use GenerateOrAbort() to guarantee monotonicity.
-//
-// Returns a GeneratorStatus code that indicates the internal state involved in
-// the last generation of ID.
-//
-// Note that the generator object should be protected from concurrent accesses
-// during the sequential calls to a generation method and this method to avoid
-// race conditions.
-func (g *Generator) LastStatus() GeneratorStatus {
-	return g.lastStatus
 }
 
 // The default timestamp rollback allowance.
@@ -242,37 +211,6 @@ const defaultRollbackAllowance = 10_000 // 10 seconds
 // the generator.
 var ErrClockRollback = fmt.Errorf(
 	"scru128.Generator: detected unbearable clock rollback")
-
-// Deprecated: The status code returned by LastStatus() method.
-type GeneratorStatus string
-
-const (
-	// Indicates that the generator has yet to generate an ID.
-	GeneratorStatusNotExecuted GeneratorStatus = ""
-
-	// Indicates that the latest timestamp was used because it was greater than
-	// the previous one.
-	GeneratorStatusNewTimestamp GeneratorStatus = "NewTimestamp"
-
-	// Indicates that counter_lo was incremented because the latest timestamp was
-	// no greater than the previous one.
-	GeneratorStatusCounterLoInc GeneratorStatus = "CounterLoInc"
-
-	// Indicates that counter_hi was incremented because counter_lo reached its
-	// maximum value.
-	GeneratorStatusCounterHiInc GeneratorStatus = "CounterHiInc"
-
-	// Indicates that the previous timestamp was incremented because counter_hi
-	// reached its maximum value.
-	GeneratorStatusTimestampInc GeneratorStatus = "TimestampInc"
-
-	// Indicates that the monotonic order of generated IDs was broken because the
-	// latest timestamp was less than the previous one by ten seconds or more.
-	GeneratorStatusClockRollback GeneratorStatus = "ClockRollback"
-
-	// Indicates that the previous generation failed.
-	GeneratorStatusError GeneratorStatus = "Error"
-)
 
 // Returns a random uint32 value.
 func (g *Generator) randomUint32() (uint32, error) {
