@@ -20,10 +20,10 @@ func TestDecreasingOrConstantTimestampReset(t *testing.T) {
 
 	for i := uint64(0); i < 100_000; i++ {
 		var curr Id
-		if i < 9_998 {
+		if i < 9_999 {
 			curr, _ = g.GenerateOrResetCore(ts-i, 10_000)
 		} else {
-			curr, _ = g.GenerateOrResetCore(ts-9_998, 10_000)
+			curr, _ = g.GenerateOrResetCore(ts-9_999, 10_000)
 		}
 		if prev.Cmp(curr) >= 0 {
 			t.Fail()
@@ -46,15 +46,21 @@ func TestTimestampRollbackReset(t *testing.T) {
 	}
 
 	curr, _ := g.GenerateOrResetCore(ts-10_000, 10_000)
-	if prev.Cmp(curr) <= 0 {
-		t.Fail()
-	}
-	if curr.Timestamp() != ts-10_000 {
+	if prev.Cmp(curr) >= 0 {
 		t.Fail()
 	}
 
 	prev = curr
 	curr, _ = g.GenerateOrResetCore(ts-10_001, 10_000)
+	if prev.Cmp(curr) <= 0 {
+		t.Fail()
+	}
+	if curr.Timestamp() != ts-10_001 {
+		t.Fail()
+	}
+
+	prev = curr
+	curr, _ = g.GenerateOrResetCore(ts-10_002, 10_000)
 	if prev.Cmp(curr) >= 0 {
 		t.Fail()
 	}
@@ -75,10 +81,10 @@ func TestDecreasingOrConstantTimestampAbort(t *testing.T) {
 
 	for i := uint64(0); i < 100_000; i++ {
 		var curr Id
-		if i < 9_998 {
+		if i < 9_999 {
 			curr, err = g.GenerateOrAbortCore(ts-i, 10_000)
 		} else {
-			curr, err = g.GenerateOrAbortCore(ts-9_998, 10_000)
+			curr, err = g.GenerateOrAbortCore(ts-9_999, 10_000)
 		}
 		if err == ErrClockRollback {
 			t.Fail()
@@ -106,12 +112,20 @@ func TestTimestampRollbackAbort(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = g.GenerateOrAbortCore(ts-10_000, 10_000)
-	if err != ErrClockRollback {
+	curr, err := g.GenerateOrAbortCore(ts-10_000, 10_000)
+	if err == ErrClockRollback {
+		t.Fail()
+	}
+	if prev.Cmp(curr) >= 0 {
 		t.Fail()
 	}
 
 	_, err = g.GenerateOrAbortCore(ts-10_001, 10_000)
+	if err != ErrClockRollback {
+		t.Fail()
+	}
+
+	_, err = g.GenerateOrAbortCore(ts-10_002, 10_000)
 	if err != ErrClockRollback {
 		t.Fail()
 	}

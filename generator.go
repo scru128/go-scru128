@@ -27,8 +27,8 @@ import (
 //	| GenerateOrAbortCore | Argument  | Unsafe  | Returns error       |
 //
 // All of these methods return monotonically increasing IDs unless a `timestamp`
-// provided is significantly (by default, ten seconds or more) smaller than the
-// one embedded in the immediately preceding ID. If such a significant clock
+// provided is significantly (by default, more than ten seconds) smaller than
+// the one embedded in the immediately preceding ID. If such a significant clock
 // rollback is detected, the `Generate` (OrReset) method resets the generator
 // and returns a new ID based on the given `timestamp`, while the `OrAbort`
 // variants abort and return the [ErrClockRollback] error value. The `Core`
@@ -164,7 +164,7 @@ func (g *Generator) GenerateOrAbortCore(
 			return Id{}, err
 		}
 		g.counterLo = n & maxCounterLo
-	} else if timestamp+rollbackAllowance > g.timestamp {
+	} else if timestamp+rollbackAllowance >= g.timestamp {
 		// go on with previous timestamp if new one is not much smaller
 		g.counterLo++
 		if g.counterLo > maxCounterLo {
