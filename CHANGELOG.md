@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.0.2 - unreleased
+
+### Added
+
+- Early `nil` checks to `Generator` methods
+
 ## v3.0.1 - 2023-07-17
 
 Most notably, v3 switches the letter case of generated IDs from uppercase (e.g.,

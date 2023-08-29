@@ -66,7 +66,12 @@ func NewGenerator() *Generator {
 // Creates a generator object with a specified random number generator. The
 // specified random number generator should be cryptographically strong and
 // securely seeded.
+//
+// This constructor panics if `rng` is nil.
 func NewGeneratorWithRng(rng io.Reader) *Generator {
+	if rng == nil {
+		panic("constructor called with nil `rng`")
+	}
 	return &Generator{rng: rng}
 }
 
@@ -150,7 +155,9 @@ func (g *Generator) GenerateOrAbortCore(
 	timestamp uint64,
 	rollbackAllowance uint64,
 ) (id Id, err error) {
-	if timestamp == 0 || timestamp > maxTimestamp {
+	if g == nil || g.rng == nil {
+		panic("method call on invalid receiver")
+	} else if timestamp == 0 || timestamp > maxTimestamp {
 		panic("`timestamp` must be a 48-bit positive integer")
 	} else if rollbackAllowance > maxTimestamp {
 		panic("`rollbackAllowance` out of reasonable range")
