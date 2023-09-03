@@ -17,7 +17,7 @@ import (
 //
 // # Generator functions
 //
-// The generator offers four different methods to generate a SCRU128 ID:
+// The generator comes with four different methods that generate a SCRU128 ID:
 //
 //	| Flavor              | Timestamp | Thread- | On big clock rewind |
 //	| ------------------- | --------- | ------- | ------------------- |
@@ -26,13 +26,18 @@ import (
 //	| GenerateOrResetCore | Argument  | Unsafe  | Resets generator    |
 //	| GenerateOrAbortCore | Argument  | Unsafe  | Returns error       |
 //
-// All of these methods return monotonically increasing IDs unless a `timestamp`
-// provided is significantly (by default, more than ten seconds) smaller than
-// the one embedded in the immediately preceding ID. If such a significant clock
-// rollback is detected, the `Generate` (OrReset) method resets the generator
-// and returns a new ID based on the given `timestamp`, while the `OrAbort`
-// variants abort and return the [ErrClockRollback] error value. The `Core`
-// functions offer low-level thread-unsafe primitives.
+// All of the four return a monotonically increasing ID by reusing the previous
+// `timestamp` even if the one provided is smaller than the immediately
+// preceding ID's. However, when such a clock rollback is considered significant
+// (by default, more than ten seconds):
+//
+//  1. `Generate` (OrReset) methods reset the generator and return a new ID
+//     based on the given `timestamp`, breaking the increasing order of IDs.
+//  2. `OrAbort` variants abort and return the [ErrClockRollback] error value
+//     immediately.
+//
+// The `Core` functions offer low-level thread-unsafe primitives to customize
+// the behavior.
 type Generator struct {
 	timestamp uint64
 	counterHi uint32
