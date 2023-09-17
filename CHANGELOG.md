@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.0.2 - 2023-09-17
+
+### Added
+
+- Early `nil` checks to `Generator` methods
+
+### Maintenance
+
+- Improved documentation about generator's clock rollback behavior
+- Renamed source files: generator -> gen, identifier -> id
+
 ## v3.0.1 - 2023-07-17
 
 Most notably, v3 switches the letter case of generated IDs from uppercase (e.g.,
