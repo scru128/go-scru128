@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.2 - unreleased
+## v3.0.2 - 2023-09-17
 
 ### Added
 
@@ -8,6 +8,7 @@
 
 ### Maintenance
 
+- Improved documentation about generator's clock rollback behavior
 - Renamed source files: generator -> gen, identifier -> id
 
 ## v3.0.1 - 2023-07-17
